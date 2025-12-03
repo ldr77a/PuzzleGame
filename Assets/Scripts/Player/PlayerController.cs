@@ -8,9 +8,13 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private GridManager gridManager;
     [SerializeField] private Image playerVisual; // 플레이어 원형 이미지
 
+    [Header("이동 설정")]
+    [SerializeField] private float moveDuration = 0.2f; // 이동 애니메이션 시간 (초)
+
     // 상태
     private int currentX;
     private int currentY;
+    private bool isMoving = false; // 이동 중 플래그
     private List<Color32> collectedColors = new List<Color32>();
     private Color32 currentPlayerColor;
     private int remainingMoves;
@@ -39,7 +43,10 @@ public class PlayerController : MonoBehaviour
     {
         // 플레이어를 항상 맨 위에 표시 (매 프레임 강제 설정)
         playerVisual.rectTransform.SetAsLastSibling();
-        
+
+        // 이동 중에는 입력 차단
+        if (isMoving) return;
+
         // 방향키 입력 (이동 횟수 차감)
         if (Input.GetKeyDown(KeyCode.UpArrow)) TryMove(0, -1);
         if (Input.GetKeyDown(KeyCode.DownArrow)) TryMove(0, 1);
@@ -66,14 +73,24 @@ public class PlayerController : MonoBehaviour
             // 이전 위치 표시 제거
             gridManager.GetTile(currentX, currentY).SetPlayerPresent(false);
 
+            int oldX = currentX;
+            int oldY = currentY;
             currentX = newX;
             currentY = newY;
 
-            UpdatePlayerPosition();
+            StartCoroutine(MoveAnimation(oldX, oldY, newX, newY));
             DecrementMoves(); // 방향키 이동 시에만 차감!
 
             // 새 위치 표시
             gridManager.GetTile(currentX, currentY).SetPlayerPresent(true);
+
+            // Reset 타일 자동 초기화 처리
+            Tile currentTile = gridManager.GetTile(currentX, currentY);
+            if (currentTile.tileType == TileType.Reset)
+            {
+                collectedColors.Clear();
+                UpdatePlayerColor();
+            }
         }
         else
         {
@@ -158,5 +175,51 @@ public class PlayerController : MonoBehaviour
         {
             OnWin?.Invoke();
         }
+    }
+
+    private System.Collections.IEnumerator MoveAnimation(int fromX, int fromY, int toX, int toY)
+    {
+        isMoving = true;
+
+        Tile fromTile = gridManager.GetTile(fromX, fromY);
+        Tile toTile = gridManager.GetTile(toX, toY);
+
+        if (fromTile == null || toTile == null)
+        {
+            isMoving = false;
+            yield break;
+        }
+
+        RectTransform fromRT = fromTile.GetComponent<RectTransform>();
+        RectTransform toRT = toTile.GetComponent<RectTransform>();
+        RectTransform playerRT = playerVisual.GetComponent<RectTransform>();
+
+        Vector3 startPos = fromRT.position;
+        Vector3 endPos = toRT.position;
+
+        float elapsedTime = 0f;
+
+        while (elapsedTime < moveDuration)
+        {
+            elapsedTime += Time.deltaTime;
+            float t = elapsedTime / moveDuration;
+
+            // Ease-out 효과 (부드러운 감속)
+            t = 1f - (1f - t) * (1f - t);
+
+            playerRT.position = Vector3.Lerp(startPos, endPos, t);
+
+            yield return null;
+        }
+
+        // 최종 위치 정확히 맞추기
+        playerRT.position = endPos;
+
+        // Z축 초기화
+        Vector3 pos = playerRT.localPosition;
+        pos.z = 0;
+        playerRT.localPosition = pos;
+
+        isMoving = false;
     }
 }

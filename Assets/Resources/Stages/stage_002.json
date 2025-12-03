@@ -1,0 +1,46 @@
+{
+  "stageId": 1,
+  "gridSize": {
+    "x": 3,
+    "y": 3
+  },
+  "playerStartPosition": {
+    "x": 1,
+    "y": 2
+  },
+  "maxMoves": 20,
+  "colorClear": [
+    90,
+    31,
+    106
+  ],
+  "colorPalette": [
+    {
+      "id": "1",
+      "rgb": [
+        232,
+        48,
+        48
+      ]
+    },
+    {
+      "id": "2",
+      "rgb": [
+        35,
+        20,
+        234
+      ]
+    }
+  ],
+  "gridData": [
+    1,
+    0,
+    2,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ]
+}

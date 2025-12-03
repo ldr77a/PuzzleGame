@@ -14,7 +14,7 @@ public class Tile : MonoBehaviour
 
     private bool hasPlayer = false;
 
-    public void Initialize(int x, int y, int gridValue, System.Collections.Generic.Dictionary<string, Color32> palette, Color32? fakeColor = null)
+    public void Initialize(int x, int y, int gridValue, System.Collections.Generic.Dictionary<string, Color32> palette, Color32 fakeColor)
     {
         gridX = x;
         gridY = y;
@@ -28,29 +28,28 @@ public class Tile : MonoBehaviour
         if (gridValue == -1)
         {
             tileType = TileType.Wall;
-            imageComponent.color = Color.black;
+            Sprite wallSprite = Resources.Load<Sprite>("Image/Wall");
+            if (wallSprite != null)
+            {
+                imageComponent.sprite = wallSprite;
+                imageComponent.color = Color.white;
+            }
         }
         else if (gridValue == -2)
         {
             tileType = TileType.Reset;
-            imageComponent.color = Color.white;
-            // TODO: 리셋 아이콘 추가
+            Sprite resetSprite = Resources.Load<Sprite>("Image/Reset");
+            if (resetSprite != null)
+            {
+                imageComponent.sprite = resetSprite;
+                imageComponent.color = Color.white; 
+            }
         }
         else if (gridValue == -3)
         {
             tileType = TileType.FakeColor;
-            
-            // FakeColor는 사용되지 않은 색상을 표시
-            if (fakeColor.HasValue)
-            {
-                tileColor = fakeColor.Value;
-                imageComponent.color = tileColor;
-            }
-            else
-            {
-                // fakeColor가 없으면 회색으로 표시
-                imageComponent.color = Color.gray;
-            }
+            tileColor = fakeColor;
+            imageComponent.color = tileColor;
         }
         else if (gridValue > 0)
         {
@@ -66,7 +65,7 @@ public class Tile : MonoBehaviour
         else
         {
             tileType = TileType.Empty;
-            imageComponent.color = new Color(0.9f, 0.9f, 0.9f); // 밝은 회색
+            imageComponent.color = new Color(1f, 1f, 1f);
         }
     }
 

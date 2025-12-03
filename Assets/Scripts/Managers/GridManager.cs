@@ -16,6 +16,17 @@ public class GridManager : MonoBehaviour
     private StageData currentStage;
     private Dictionary<string, Color32> colorPalette;
 
+    // baseColors 배열 (StageGenerator와 동일)
+    private readonly Color32[] baseColors = {
+        new Color32(232, 48, 48, 255),    // 1: 빨강
+        new Color32(247, 150, 70, 255),   // 2: 주황
+        new Color32(255, 246, 75, 255),   // 3: 노랑
+        new Color32(171, 213, 84, 255),   // 4: 연두
+        new Color32(71, 163, 255, 255),   // 5: 파랑
+        new Color32(35, 20, 234, 255),    // 6: 남색
+        new Color32(174, 81, 199, 255)    // 7: 보라
+    };
+
     public void GenerateGrid(StageData stageData)
     {
         ClearGrid();
@@ -33,12 +44,8 @@ public class GridManager : MonoBehaviour
             colorPalette[entry.id] = ColorMixer.ArrayToColor(entry.rgb);
         }
 
-        // FakeColor 색상 준비
-        Color32? fakeColor = null;
-        if (stageData.fakeColorRgb != null && stageData.fakeColorRgb.Length == 3)
-        {
-            fakeColor = ColorMixer.ArrayToColor(stageData.fakeColorRgb);
-        }
+        // FakeColor 색상 준비 (colorPalette에 없는 색상 중 랜덤 선택)
+        Color32 fakeColor = GenerateFakeColor(colorPalette);
 
         // GridLayoutGroup 컴포넌트 가져오기
         GridLayoutGroup gridLayout = gridContainer.GetComponent<GridLayoutGroup>();
@@ -149,5 +156,40 @@ public class GridManager : MonoBehaviour
     {
         Tile tile = GetTile(x, y);
         return tile != null && tile.IsWalkable();
+    }
+
+    private Color32 GenerateFakeColor(Dictionary<string, Color32> colorPalette)
+    {
+        // colorPalette에 사용된 색상들 추출
+        List<Color32> usedColors = new List<Color32>(colorPalette.Values);
+
+        // baseColors에서 사용되지 않은 색상들 필터링
+        List<Color32> unusedColors = new List<Color32>();
+        foreach (Color32 baseColor in baseColors)
+        {
+            bool isUsed = false;
+            foreach (Color32 usedColor in usedColors)
+            {
+                if (ColorMixer.ColorsMatch(baseColor, usedColor))
+                {
+                    isUsed = true;
+                    break;
+                }
+            }
+            if (!isUsed)
+            {
+                unusedColors.Add(baseColor);
+            }
+        }
+
+        // 사용되지 않은 색상 중 랜덤 선택
+        if (unusedColors.Count > 0)
+        {
+            int randomIndex = Random.Range(0, unusedColors.Count);
+            return unusedColors[randomIndex];
+        }
+
+        // 모든 색상이 사용된 경우 (불가능하지만 안전장치)
+        return baseColors[Random.Range(0, baseColors.Length)];
     }
 }
