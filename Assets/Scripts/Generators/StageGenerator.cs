@@ -137,6 +137,7 @@ public class StageGenerator : MonoBehaviour
 
         // ---[ 2. 목표 색상 생성 (랜덤 혼합 횟수) ]---
         int totalRepeats = Random.Range(profile.minTotalRepeats, profile.maxTotalRepeats + 1);
+        stage.totalRepeats = totalRepeats; // ★ NEW: 총 혼합 횟수 저장
         List<Color32> targetMix = new List<Color32>();
 
         if (profile.useUnbalancedMix && colorCount >= 2)
