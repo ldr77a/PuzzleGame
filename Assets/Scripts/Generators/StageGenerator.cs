@@ -266,9 +266,9 @@ public class StageGenerator : MonoBehaviour
         // ==========================================================
         // [검증 핵심] 차선책(Best Candidate) 확보 및 디버깅
         // ==========================================================
-        
+
         StageData bestCandidate = null; // 가장 나은 맵 저장
-        int bestMoves = -1;
+        float bestScore = -1; // ★ NEW: 점수 기반 추적
         
         int maxAttempts = 20; // 횟수 조금 증가
 
@@ -279,7 +279,7 @@ public class StageGenerator : MonoBehaviour
             {
                 // 2. 솔루션 검증
                 AStarPathfinder pathfinder = new AStarPathfinder();
-                SolutionData solution = pathfinder.FindSolution(stage);
+                SolutionData solution = pathfinder.FindSolution(stage, profile.maxTotalRepeats + 5);
 
                 // [디버그] 실패 원인 분석용 로그
                 if (solution == null)
@@ -288,33 +288,47 @@ public class StageGenerator : MonoBehaviour
                 }
                 else
                 {
+                    // ★ NEW: 실제 수집 횟수 확인
+                    var finalState = solution.stateHistory[solution.stateHistory.Count - 1];
+                    int actualCollections = finalState.collectedColorIds.Count;
+
                     // 디버그: A* 솔루션 수집 정보
-                    if (solution.stateHistory.Count > 0)
-                    {
-                        var finalState = solution.stateHistory[solution.stateHistory.Count - 1];
-                        Debug.Log($"[시도 {attempt}] A* 솔루션: {solution.totalMoves}이동, 수집: {finalState.collectedColorIds.Count}번 [{string.Join(", ", finalState.collectedColorIds)}]");
-                    }
+                    Debug.Log($"[시도 {attempt}] A* 솔루션: {solution.totalMoves}이동, 수집: {actualCollections}번 [{string.Join(", ", finalState.collectedColorIds)}]");
+
+                    // ★ NEW: 수집 횟수와 이동 횟수 모두 검증
+                    bool collectionValid = actualCollections >= profile.minTotalRepeats &&
+                                           actualCollections <= profile.maxTotalRepeats;
+                    bool movesValid = solution.totalMoves >= profile.minSolutionMoves;
 
                     // 현재 맵이 최소 조건은 만족 못 해도, 지금까지 중 최고라면 저장 (깊은 복사)
-                    if (solution.totalMoves > bestMoves)
+                    // ★ NEW: 점수 = 수집 횟수 우선 + 이동 횟수
+                    float score = actualCollections * 100 + solution.totalMoves;
+                    if (score > bestScore)
                     {
-                        bestMoves = solution.totalMoves;
+                        bestScore = score;
                         string json = JsonUtility.ToJson(stage); // 간편한 깊은 복사
                         bestCandidate = JsonUtility.FromJson<StageData>(json);
                         bestCandidate.solutionMoves = solution.totalMoves;
                     }
 
-                    // 3. 난이도 검증 (Pass 조건)
-                    if (solution.totalMoves >= profile.minSolutionMoves)
+                    // 3. 난이도 검증 (Pass 조건) - 수집 횟수와 이동 횟수 모두 만족
+                    if (collectionValid && movesValid)
                     {
                         // 성공!
                         FinalizeStage(bestCandidate, profile, difficulty, colorCount);
-                        Debug.Log($"<color=green>스테이지 {stageId} 생성 성공!</color> (시도: {attempt + 1}, 이동: {solution.totalMoves})");
+                        Debug.Log($"<color=green>스테이지 {stageId} 생성 성공!</color> (시도: {attempt + 1}, 이동: {solution.totalMoves}, 수집: {actualCollections})");
                         return bestCandidate;
                     }
                     else
                     {
-                        Debug.LogWarning($"[생성 실패 {attempt}] 너무 쉬움 (Move: {solution.totalMoves} < Min: {profile.minSolutionMoves})");
+                        if (!collectionValid)
+                        {
+                            Debug.LogWarning($"[생성 실패 {attempt}] 수집 횟수 불일치 (수집: {actualCollections}, 필요: {profile.minTotalRepeats}-{profile.maxTotalRepeats})");
+                        }
+                        if (!movesValid)
+                        {
+                            Debug.LogWarning($"[생성 실패 {attempt}] 이동 횟수 부족 (이동: {solution.totalMoves}, 최소: {profile.minSolutionMoves})");
+                        }
                     }
                 }
             }
@@ -324,7 +338,9 @@ public class StageGenerator : MonoBehaviour
         // 반복 횟수를 다 썼는데도 완벽한 맵이 없으면, 차선책이라도 반환 (Easy 모드 구원)
         if (bestCandidate != null)
         {
-            Debug.LogError($"스테이지 {stageId}: 조건 충족 실패. 차선책(이동 {bestMoves})을 반환합니다.");
+            int collectionFromScore = (int)(bestScore / 100);
+            int movesFromScore = (int)(bestScore % 100);
+            Debug.LogError($"스테이지 {stageId}: 조건 충족 실패. 차선책(수집 {collectionFromScore}, 이동 {movesFromScore})을 반환합니다.");
             FinalizeStage(bestCandidate, profile, difficulty, colorCount);
             return bestCandidate;
         }

@@ -45,6 +45,7 @@ public class AStarPathfinder
 {
     private Dictionary<string, Color32> colorPalette;
     private Color32 targetColor;
+    private int maxCollections = 20; // 무한 수집 방지
 
     // 1D 배열 인덱싱 헬퍼 함수
     private int GetGridIndex(int x, int y, int width)
@@ -52,8 +53,9 @@ public class AStarPathfinder
         return y * width + x;
     }
 
-    public SolutionData FindSolution(StageData stage)
+    public SolutionData FindSolution(StageData stage, int maxCollectionsLimit = 20)
     {
+        maxCollections = maxCollectionsLimit;
         BuildColorPalette(stage);
         targetColor = ColorMixer.ArrayToColor(stage.colorClear);
 
@@ -153,6 +155,30 @@ public class AStarPathfinder
 
                 neighbors.Add(newState);
             }
+        }
+
+        // ========================================
+        // ★ NEW: "제자리에서 다시 수집" 행동 추가 ★
+        // ========================================
+        int currentIndex = GetGridIndex(state.position.x, state.position.y, stage.gridSize.x);
+        int currentCellValue = stage.gridData[currentIndex];
+
+        // 현재 위치가 색상 타일이고, 수집 횟수 제한에 도달하지 않았으면
+        if (currentCellValue > 0 && state.collectedColorIds.Count < maxCollections)
+        {
+            var stayState = state.Clone();
+            // 위치는 변경 안 함
+            stayState.moveCount++;
+            stayState.collectedColorIds.Add(currentCellValue.ToString());
+
+            // 색상 재계산
+            List<Color32> colors = stayState.collectedColorIds
+                .Select(id => colorPalette[id])
+                .ToList();
+
+            stayState.currentColor = ColorMixer.MixColors(colors);
+
+            neighbors.Add(stayState);
         }
 
         return neighbors;
