@@ -115,42 +115,44 @@ public class AStarPathfinder
             new Vector2Int(1, 0)   // 오른쪽
         };
 
-        // 1. 이동만 (색상 수집 안함)
+        // 이동하면서 타일 효과 자동 적용
         foreach (var dir in directions)
         {
             Vector2Int newPos = state.position + dir;
 
             if (IsValidPosition(newPos, stage) && IsWalkable(newPos, stage))
             {
+                int index = GetGridIndex(newPos.x, newPos.y, stage.gridSize.x);
+                int cellValue = stage.gridData[index];
+
                 var newState = state.Clone();
                 newState.position = newPos;
                 newState.moveCount++;
+
+                // 이동한 위치의 타일 효과 자동 적용
+                if (cellValue > 0) // 색상 타일
+                {
+                    // 색상 타일은 여러 번 수집 가능 (중복 허용)
+                    newState.collectedColorIds.Add(cellValue.ToString());
+
+                    List<Color32> colors = newState.collectedColorIds
+                        .Select(id => colorPalette[id])
+                        .ToList();
+
+                    newState.currentColor = ColorMixer.MixColors(colors);
+                }
+                else if (cellValue == -2) // 리셋 타일
+                {
+                    newState.collectedColorIds.Clear();
+                    newState.currentColor = new Color32(255, 255, 255, 255);
+                }
+                else if (cellValue == -3) // FakeColor 타일 (아무 효과 없음)
+                {
+                    // 아무것도 하지 않음
+                }
+
                 neighbors.Add(newState);
             }
-        }
-
-        // 2. 현재 위치에서 색상 수집
-        int index = GetGridIndex(state.position.x, state.position.y, stage.gridSize.x);
-        int cellValue = stage.gridData[index];
-
-        if (cellValue > 0) // 색상 타일
-        {
-            var newState = state.Clone();
-            newState.collectedColorIds.Add(cellValue.ToString());
-
-            List<Color32> colors = newState.collectedColorIds
-                .Select(id => colorPalette[id])
-                .ToList();
-
-            newState.currentColor = ColorMixer.MixColors(colors);
-            neighbors.Add(newState);
-        }
-        else if (cellValue == -2) // 리셋 타일
-        {
-            var newState = state.Clone();
-            newState.collectedColorIds.Clear();
-            newState.currentColor = new Color32(255, 255, 255, 255);
-            neighbors.Add(newState);
         }
 
         return neighbors;

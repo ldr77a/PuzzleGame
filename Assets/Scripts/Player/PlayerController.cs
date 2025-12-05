@@ -9,7 +9,7 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private Image playerVisual; // 플레이어 원형 이미지
 
     [Header("이동 설정")]
-    [SerializeField] private float moveDuration = 0.2f; // 이동 애니메이션 시간 (초)
+    [SerializeField] private float moveDuration = 0.1f; // 이동 애니메이션 시간 (초)
 
     // 상태
     private int currentX;
@@ -65,11 +65,11 @@ public class PlayerController : MonoBehaviour
         int newX = currentX + deltaX;
         int newY = currentY + deltaY;
 
-        Debug.Log($"Trying to move from ({currentX}, {currentY}) to ({newX}, {newY})");
+        // Debug.Log($"Trying to move from ({currentX}, {currentY}) to ({newX}, {newY})");
         
         if (gridManager.IsValidMove(newX, newY))
         {
-            Debug.Log($"Move valid!");
+            // Debug.Log($"Move valid!");
             // 이전 위치 표시 제거
             gridManager.GetTile(currentX, currentY).SetPlayerPresent(false);
 
@@ -79,7 +79,7 @@ public class PlayerController : MonoBehaviour
             currentY = newY;
 
             StartCoroutine(MoveAnimation(oldX, oldY, newX, newY));
-            DecrementMoves(); // 방향키 이동 시에만 차감!
+            DecrementMoves(); // 방향키 이동 시에만 차감
 
             // 새 위치 표시
             gridManager.GetTile(currentX, currentY).SetPlayerPresent(true);
@@ -94,7 +94,7 @@ public class PlayerController : MonoBehaviour
         }
         else
         {
-            Debug.Log($"Move INVALID! Tile: {gridManager.GetTile(newX, newY)}");
+            //Debug.Log($"Move INVALID! Tile: {gridManager.GetTile(newX, newY)}");
         }
     }
 

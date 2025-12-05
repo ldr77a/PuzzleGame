@@ -1,94 +1,61 @@
 {
-  "stageId": 1,
-  "gridSize": {
-    "x": 5,
-    "y": 5
-  },
-  "playerStartPosition": {
-    "x": 2,
-    "y": 2
-  },
-  "maxMoves": 200,
-  "colorClear": [
-    90,
-    31,
-    106
-  ],
-  "colorPalette": [
-    {
-      "id": "1",
-      "rgb": [
-        232,
-        48,
-        48
-      ]
+    "stageId": 1,
+    "gridSize": {
+        "x": 4,
+        "y": 4
     },
-    {
-      "id": "2",
-      "rgb": [
-        247,
-        150,
-        70
-      ]
+    "playerStartPosition": {
+        "x": 1,
+        "y": 1
     },
-    {
-      "id": "3",
-      "rgb": [
-        35,
-        20,
-        234
-      ]
-    },
-    {
-      "id": "4",
-      "rgb": [
-        255,
-        246,
-        75
-      ]
-    },
-    {
-      "id": "5",
-      "rgb": [
-        171,
-        213,
-        84
-      ]
-    },
-    {
-      "id": "6",
-      "rgb": [
-        174,
-        81,
-        199
-      ]
-    }
-  ],
-  "gridData": [
-    1,
-    0,
-    0,
-    0,
-    -1,
-    0,
-    0,
-    0,
-    3,
-    0,
-    0,
-    -2,
-    0,
-    0,
-    4,
-    0,
-    0,
-    5,
-    0,
-    0,
-    6,
-    0,
-    0,
-    0,
-    -3
-  ]
+    "maxMoves": 18,
+    "colorClear": [
+        111,
+        115,
+        225
+    ],
+    "colorPalette": [
+        {
+            "id": "1",
+            "rgb": [
+                71,
+                163,
+                255
+            ]
+        },
+        {
+            "id": "2",
+            "rgb": [
+                174,
+                81,
+                199
+            ]
+        }
+    ],
+    "gridData": [
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0
+    ],
+    "fakeColorRgb": [],
+    "difficulty": 1,
+    "solutionMoves": 7,
+    "placementStrategy": "Random",
+    "colorCount": 2,
+    "wallCount": 0,
+    "hasSpecialTiles": false,
+    "createdDate": "2025-12-05T06:11:26.8502234Z"
 }

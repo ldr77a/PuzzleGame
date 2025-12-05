@@ -2,20 +2,106 @@ using UnityEngine;
 using System.Collections.Generic;
 using System.Linq;
 
+public enum PlacementStrategy
+{
+    Random,     // 랜덤 배치
+    Clustered,  // 색상들을 한 영역에 모음
+    Scattered,  // 색상들을 최대한 멀리 배치
+    Linear      // 색상들을 일직선/경로로 배치
+}
+
+[System.Serializable]
+public struct DifficultyProfile
+{
+    [Header("그리드 설정")]
+    public Vector2Int gridSize;
+
+    [Header("색상 설정")]
+    public int minColors;
+    public int maxColors;
+    public PlacementStrategy placementStrategy;
+
+    [Header("목표 색상 혼합 (총 반복 횟수)")]
+    public int minTotalRepeats;          // 최소 총 혼합 횟수 (Easy: 2, Medium: 4, Hard: 7)
+    public int maxTotalRepeats;          // 최대 총 혼합 횟수 (Easy: 4, Medium: 6, Hard: 10)
+    public bool useUnbalancedMix;        // 불균형 혼합 사용 여부 (Hard만 true)
+
+    [Header("장애물 설정")]
+    public int minWalls;
+    public int maxWalls;
+    public bool useSpecialTiles;
+    public int specialTileCount;
+
+    [Header("난이도 검증")]
+    public int minSolutionMoves;         // 최소 이동 횟수
+    public float moveMultiplier;         // 이동 횟수 배수
+}
+
 public class StageGenerator : MonoBehaviour
 {
-    // 기본 색상 팔레트 (빨, 주, 노, 연두, 파, 남, 보)
     private readonly Color32[] baseColors = {
-        new Color32(232, 48, 48, 255),    // 1: 빨강
-        new Color32(247, 150, 70, 255),   // 2: 주황
-        new Color32(255, 246, 75, 255),   // 3: 노랑
-        new Color32(171, 213, 84, 255),   // 4: 연두
-        new Color32(71, 163, 255, 255),    // 5: 파랑
-        new Color32(35, 20, 234, 255),    // 6: 남색
-        new Color32(174, 81, 199, 255)    // 7: 보라
+        new Color32(232, 48, 48, 255),
+        new Color32(247, 150, 70, 255),
+        new Color32(255, 246, 75, 255),
+        new Color32(171, 213, 84, 255),
+        new Color32(71, 163, 255, 255),
+        new Color32(35, 20, 234, 255),
+        new Color32(174, 81, 199, 255)
     };
 
-    // 1D 배열 인덱싱 헬퍼 함수
+    [SerializeField] private DifficultyProfile[] difficultyProfiles = new DifficultyProfile[]
+    {
+        // Easy (난이도 1)
+        new DifficultyProfile
+        {
+            gridSize = new Vector2Int(4, 4),
+            minColors = 2, maxColors = 3,
+            placementStrategy = PlacementStrategy.Random,  // 랜덤 분산 배치
+            minTotalRepeats = 2, maxTotalRepeats = 4,
+            useUnbalancedMix = false,
+            minWalls = 0, maxWalls = 1,
+            useSpecialTiles = true, specialTileCount = 1,  // Reset 타일 1개 추가
+            minSolutionMoves = 2, moveMultiplier = 2.5f
+        },
+        // Medium (난이도 2)
+        new DifficultyProfile
+        {
+            gridSize = new Vector2Int(5, 5),
+            minColors = 2, maxColors = 4,
+            placementStrategy = PlacementStrategy.Random,  // Random으로 변경 (분산)
+            minTotalRepeats = 4, maxTotalRepeats = 6,
+            useUnbalancedMix = false,
+            minWalls = 1, maxWalls = 2,
+            useSpecialTiles = true, specialTileCount = 1,  // Reset 타일 1개 추가
+            minSolutionMoves = 6, moveMultiplier = 1.6f
+        },
+        // Hard (난이도 3)
+        new DifficultyProfile
+        {
+            gridSize = new Vector2Int(6, 6),
+            minColors = 3, maxColors = 5,
+            placementStrategy = PlacementStrategy.Scattered,  // 최대한 멀리 배치
+            minTotalRepeats = 7, maxTotalRepeats = 10,
+            useUnbalancedMix = true,
+            minWalls = 2, maxWalls = 3,
+            useSpecialTiles = true, specialTileCount = 2,  // Reset/Fake 타일 2개
+            minSolutionMoves = 10, moveMultiplier = 1.5f
+        }
+    };
+
+    private void ShuffleList<T>(List<T> list)
+    {
+        int n = list.Count;
+        while (n > 1)
+        {
+            n--;
+            int k = Random.Range(0, n + 1);
+            T value = list[k];
+            list[k] = list[n];
+            list[n] = value;
+        }
+    }
+
     private int GetGridIndex(int x, int y, int width)
     {
         return y * width + x;
@@ -26,152 +112,404 @@ public class StageGenerator : MonoBehaviour
         StageData stage = new StageData();
         stage.stageId = stageId;
 
-        // 1. 그리드 크기 결정 (난이도별)
-        stage.gridSize = new GridSize();
-        if (difficulty == 1) // Easy
-        {
-            stage.gridSize.x = 4;
-            stage.gridSize.y = 4;
-        }
-        else if (difficulty == 2) // Medium
-        {
-            stage.gridSize.x = 5;
-            stage.gridSize.y = 5;
-        }
-        else // Hard
-        {
-            stage.gridSize.x = 6;
-            stage.gridSize.y = 6;
-        }
+        // 난이도 및 그리드 설정 (기존과 동일)
+        DifficultyProfile profile = difficultyProfiles[Mathf.Clamp(difficulty - 1, 0, difficultyProfiles.Length - 1)];
+        stage.gridSize = new GridSize { x = profile.gridSize.x, y = profile.gridSize.y };
 
-        // 2. 색상 선택 (2-3개)
-        int colorCount = Random.Range(2, 4);
+        // ---[ 1. 색상 선택 및 팔레트 생성 (기존 로직 유지) ]---
+        int colorCount = Random.Range(profile.minColors, profile.maxColors + 1);
         List<int> selectedIndices = new List<int>();
-
-        for (int i = 0; i < colorCount; i++)
+        while (selectedIndices.Count < colorCount)
         {
             int index = Random.Range(0, baseColors.Length);
-            while (selectedIndices.Contains(index))
-            {
-                index = Random.Range(0, baseColors.Length);
-            }
-            selectedIndices.Add(index);
+            if (!selectedIndices.Contains(index)) selectedIndices.Add(index);
         }
 
-        // 3. 색상 팔레트 생성
         stage.colorPalette = new ColorPaletteEntry[colorCount];
         for (int i = 0; i < colorCount; i++)
         {
             stage.colorPalette[i] = new ColorPaletteEntry
             {
                 id = (i + 1).ToString(),
-                rgb = new int[] {
-                    baseColors[selectedIndices[i]].r,
-                    baseColors[selectedIndices[i]].g,
-                    baseColors[selectedIndices[i]].b
-                }
+                rgb = new int[] { baseColors[selectedIndices[i]].r, baseColors[selectedIndices[i]].g, baseColors[selectedIndices[i]].b }
             };
         }
 
-        // 4. 목표 색상 생성 (최소 2개 색상 조합)
+        // ---[ 2. 목표 색상 생성 (랜덤 혼합 횟수) ]---
+        int totalRepeats = Random.Range(profile.minTotalRepeats, profile.maxTotalRepeats + 1);
         List<Color32> targetMix = new List<Color32>();
-        for (int i = 0; i < colorCount; i++)
+
+        if (profile.useUnbalancedMix && colorCount >= 2)
         {
-            int repeatCount = Random.Range(1, 3);
-            for (int j = 0; j < repeatCount; j++)
+            // Hard 모드: 불균형 혼합 (한 색상이 지배적)
+            // 예: totalRepeats=8, colorCount=3 → [5, 2, 1] 또는 [6, 1, 1]
+            int dominantIndex = Random.Range(0, colorCount);
+
+            // 남은 반복 횟수를 다른 색상들에게 분배
+            int remainingRepeats = totalRepeats;
+            int[] colorRepeats = new int[colorCount];
+
+            // 지배 색상은 최소 절반 이상
+            int dominantMin = Mathf.Max(totalRepeats / 2, totalRepeats - (colorCount - 1));
+            colorRepeats[dominantIndex] = Random.Range(dominantMin, totalRepeats - (colorCount - 1) + 1);
+            remainingRepeats -= colorRepeats[dominantIndex];
+
+            // 나머지 색상들에게 랜덤 분배
+            for (int i = 0; i < colorCount; i++)
             {
-                targetMix.Add(ColorMixer.ArrayToColor(stage.colorPalette[i].rgb));
+                if (i != dominantIndex)
+                {
+                    int maxForThis = Mathf.Min(remainingRepeats, remainingRepeats - (colorCount - i - 1 - (i < dominantIndex ? 1 : 0)));
+                    colorRepeats[i] = Random.Range(1, maxForThis + 1);
+                    remainingRepeats -= colorRepeats[i];
+                }
+            }
+
+            // 남은 횟수가 있으면 랜덤 색상에 추가
+            while (remainingRepeats > 0)
+            {
+                int randomColorIndex = Random.Range(0, colorCount);
+                colorRepeats[randomColorIndex]++;
+                remainingRepeats--;
+            }
+
+            // 목표 색상 리스트 생성
+            for (int i = 0; i < colorCount; i++)
+            {
+                Color32 color = ColorMixer.ArrayToColor(stage.colorPalette[i].rgb);
+                for (int j = 0; j < colorRepeats[i]; j++)
+                {
+                    targetMix.Add(color);
+                }
+            }
+        }
+        else
+        {
+            // Easy/Medium 모드: 균등 혼합
+            // 예: totalRepeats=5, colorCount=2 → [3, 2] 또는 [2, 3]
+            int[] colorRepeats = new int[colorCount];
+            int baseRepeat = totalRepeats / colorCount;
+            int remainder = totalRepeats % colorCount;
+
+            for (int i = 0; i < colorCount; i++)
+            {
+                colorRepeats[i] = baseRepeat;
+            }
+
+            // 나머지를 랜덤 색상에 분배
+            for (int i = 0; i < remainder; i++)
+            {
+                int randomIndex = Random.Range(0, colorCount);
+                colorRepeats[randomIndex]++;
+            }
+
+            // 목표 색상 리스트 생성
+            for (int i = 0; i < colorCount; i++)
+            {
+                Color32 color = ColorMixer.ArrayToColor(stage.colorPalette[i].rgb);
+                for (int j = 0; j < colorRepeats[i]; j++)
+                {
+                    targetMix.Add(color);
+                }
             }
         }
 
         Color32 targetColor = ColorMixer.MixColors(targetMix);
         stage.colorClear = new int[] { targetColor.r, targetColor.g, targetColor.b };
 
-        // 5. 그리드 생성 (최대 10회 재시도)
-        for (int attempt = 0; attempt < 10; attempt++)
+        // 디버그: 목표 혼합 정보 출력
+        string mixInfo = $"Stage {stageId} 목표: 총 {totalRepeats}번 혼합 [";
+        if (profile.useUnbalancedMix && colorCount >= 2)
         {
-            if (TryGenerateGrid(stage, difficulty, selectedIndices))
+            // Hard 모드
+            int[] colorRepeats = new int[colorCount];
+            foreach (var color in targetMix)
             {
-                // 6. A* 검증
+                for (int i = 0; i < colorCount; i++)
+                {
+                    Color32 paletteColor = ColorMixer.ArrayToColor(stage.colorPalette[i].rgb);
+                    if (color.r == paletteColor.r && color.g == paletteColor.g && color.b == paletteColor.b)
+                    {
+                        colorRepeats[i]++;
+                        break;
+                    }
+                }
+            }
+            for (int i = 0; i < colorCount; i++)
+            {
+                mixInfo += $"색{i + 1}:{colorRepeats[i]}회 ";
+            }
+        }
+        else
+        {
+            // Easy/Medium 모드
+            int[] colorRepeats = new int[colorCount];
+            int baseRepeat = totalRepeats / colorCount;
+            int remainder = totalRepeats % colorCount;
+            for (int i = 0; i < colorCount; i++)
+            {
+                colorRepeats[i] = baseRepeat;
+            }
+            for (int i = 0; i < remainder; i++)
+            {
+                int randomIndex = Random.Range(0, colorCount);
+                colorRepeats[randomIndex]++;
+            }
+            for (int i = 0; i < colorCount; i++)
+            {
+                mixInfo += $"색{i + 1}:{colorRepeats[i]}회 ";
+            }
+        }
+        mixInfo += "]";
+        Debug.Log(mixInfo);
+
+        // ==========================================================
+        // [검증 핵심] 차선책(Best Candidate) 확보 및 디버깅
+        // ==========================================================
+        
+        StageData bestCandidate = null; // 가장 나은 맵 저장
+        int bestMoves = -1;
+        
+        int maxAttempts = 20; // 횟수 조금 증가
+
+        for (int attempt = 0; attempt < maxAttempts; attempt++)
+        {
+            // 1. 배치 시도
+            if (TryGenerateGrid(stage, profile, selectedIndices))
+            {
+                // 2. 솔루션 검증
                 AStarPathfinder pathfinder = new AStarPathfinder();
                 SolutionData solution = pathfinder.FindSolution(stage);
 
-                if (solution != null)
+                // [디버그] 실패 원인 분석용 로그
+                if (solution == null)
                 {
-                    // 7. 이동 횟수 설정 (솔루션 * 1.5배)
-                    stage.maxMoves = Mathf.CeilToInt(solution.totalMoves * 1.5f);
-                    Debug.Log($"스테이지 {stageId} 생성 성공! (솔루션: {solution.totalMoves}이동)");
-                    return stage;
+                    Debug.LogWarning($"[생성 실패 {attempt}] A* 경로 없음 (Impossible Map)");
+                }
+                else
+                {
+                    // 디버그: A* 솔루션 수집 정보
+                    if (solution.stateHistory.Count > 0)
+                    {
+                        var finalState = solution.stateHistory[solution.stateHistory.Count - 1];
+                        Debug.Log($"[시도 {attempt}] A* 솔루션: {solution.totalMoves}이동, 수집: {finalState.collectedColorIds.Count}번 [{string.Join(", ", finalState.collectedColorIds)}]");
+                    }
+
+                    // 현재 맵이 최소 조건은 만족 못 해도, 지금까지 중 최고라면 저장 (깊은 복사)
+                    if (solution.totalMoves > bestMoves)
+                    {
+                        bestMoves = solution.totalMoves;
+                        string json = JsonUtility.ToJson(stage); // 간편한 깊은 복사
+                        bestCandidate = JsonUtility.FromJson<StageData>(json);
+                        bestCandidate.solutionMoves = solution.totalMoves;
+                    }
+
+                    // 3. 난이도 검증 (Pass 조건)
+                    if (solution.totalMoves >= profile.minSolutionMoves)
+                    {
+                        // 성공!
+                        FinalizeStage(bestCandidate, profile, difficulty, colorCount);
+                        Debug.Log($"<color=green>스테이지 {stageId} 생성 성공!</color> (시도: {attempt + 1}, 이동: {solution.totalMoves})");
+                        return bestCandidate;
+                    }
+                    else
+                    {
+                        Debug.LogWarning($"[생성 실패 {attempt}] 너무 쉬움 (Move: {solution.totalMoves} < Min: {profile.minSolutionMoves})");
+                    }
                 }
             }
         }
 
-        Debug.LogWarning($"스테이지 {stageId} 생성 실패 (10회 시도)");
+        // ---[ 3. 최후의 수단 (Fallback) ]---
+        // 반복 횟수를 다 썼는데도 완벽한 맵이 없으면, 차선책이라도 반환 (Easy 모드 구원)
+        if (bestCandidate != null)
+        {
+            Debug.LogError($"스테이지 {stageId}: 조건 충족 실패. 차선책(이동 {bestMoves})을 반환합니다.");
+            FinalizeStage(bestCandidate, profile, difficulty, colorCount);
+            return bestCandidate;
+        }
+
+        Debug.LogError($"스테이지 {stageId} 생성 완전 실패. (A*가 모든 맵에서 null을 반환함)");
         return null;
     }
 
-    private bool TryGenerateGrid(StageData stage, int difficulty, List<int> selectedIndices)
+    // 메타데이터 설정 헬퍼 함수
+    private void FinalizeStage(StageData stage, DifficultyProfile profile, int difficulty, int colorCount)
     {
-        int width = stage.gridSize.x;
-        int height = stage.gridSize.y;
+        stage.maxMoves = Mathf.CeilToInt(stage.solutionMoves * profile.moveMultiplier);
+        // 이동 횟수가 너무 적으면 최소값 보정 (Easy 모드 보호)
+        if (stage.maxMoves < 2) stage.maxMoves = 3; 
 
-        // 그리드 초기화 (1D 배열, 모두 0)
-        stage.gridData = new int[width * height];
+        stage.difficulty = difficulty;
+        stage.placementStrategy = profile.placementStrategy.ToString();
+        stage.colorCount = colorCount;
+        stage.wallCount = CountWalls(stage);
+        stage.hasSpecialTiles = profile.useSpecialTiles && profile.specialTileCount > 0;
+        stage.createdDate = System.DateTime.UtcNow.ToString("o");
+    }
+
+    private bool TryGenerateGrid(StageData stage, DifficultyProfile profile, List<int> selectedIndices)
+    {
+        stage.gridData = new int[stage.gridSize.x * stage.gridSize.y];
 
         // 색상 타일 배치
         foreach (var colorEntry in stage.colorPalette)
         {
-            if (!PlaceColorTile(stage, int.Parse(colorEntry.id)))
-            {
+            if (!PlaceColorTileWithStrategy(stage, int.Parse(colorEntry.id), profile.placementStrategy))
                 return false;
-            }
         }
 
-        // 플레이어 시작 위치 (빈 타일)
+        // 플레이어 배치
         List<Vector2Int> emptyTiles = GetEmptyTiles(stage);
         if (emptyTiles.Count == 0) return false;
 
-        Vector2Int startPos = emptyTiles[Random.Range(0, emptyTiles.Count)];
+        ShuffleList(emptyTiles);
+        Vector2Int startPos = emptyTiles[0];
         stage.playerStartPosition = new GridPosition { x = startPos.x, y = startPos.y };
+        emptyTiles.RemoveAt(0);
 
-        // 기믹 추가 (난이도별)
-        if (difficulty >= 2)
+        // 벽 배치
+        int wallCount = Random.Range(profile.minWalls, profile.maxWalls + 1);
+        for (int i = 0; i < wallCount && emptyTiles.Count > 0; i++)
         {
-            PlaceWalls(stage, difficulty - 1);
+            int idx = GetGridIndex(emptyTiles[0].x, emptyTiles[0].y, stage.gridSize.x);
+            stage.gridData[idx] = -1;
+            emptyTiles.RemoveAt(0);
         }
 
-        if (difficulty >= 3)
+        // 특수 타일 배치 (Reset 우선, 나머지는 랜덤)
+        if (profile.useSpecialTiles && profile.specialTileCount > 0)
         {
-            PlaceResetOrFakeTile(stage, selectedIndices);
+            for (int i = 0; i < profile.specialTileCount && emptyTiles.Count > 0; i++)
+            {
+                int idx = GetGridIndex(emptyTiles[0].x, emptyTiles[0].y, stage.gridSize.x);
+
+                if (i == 0)
+                {
+                    // 첫 번째는 무조건 Reset 타일
+                    stage.gridData[idx] = -2;
+                }
+                else
+                {
+                    // 두 번째부터는 Reset 또는 FakeColor 랜덤
+                    if (Random.Range(0, 2) == 0)
+                    {
+                        stage.gridData[idx] = -2;  // Reset
+                    }
+                    else
+                    {
+                        List<int> unusedIndices = Enumerable.Range(0, baseColors.Length).Except(selectedIndices).ToList();
+                        if (unusedIndices.Count > 0)
+                        {
+                            Color32 fake = baseColors[unusedIndices[Random.Range(0, unusedIndices.Count)]];
+                            stage.fakeColorRgb = new int[] { fake.r, fake.g, fake.b };
+                            stage.gridData[idx] = -3;  // FakeColor
+                        }
+                        else
+                        {
+                            stage.gridData[idx] = -2;  // Fake 불가능하면 Reset
+                        }
+                    }
+                }
+                emptyTiles.RemoveAt(0);
+            }
         }
 
         return true;
     }
 
-    private bool PlaceColorTile(StageData stage, int colorId)
+    private bool PlaceColorTileWithStrategy(StageData stage, int colorId, PlacementStrategy strategy)
     {
-        int width = stage.gridSize.x;
-        int height = stage.gridSize.y;
+        List<Vector2Int> candidates = GetEmptyTiles(stage);
+        if (candidates.Count == 0) return false;
 
-        for (int attempt = 0; attempt < 20; attempt++)
+        ShuffleList(candidates);
+
+        switch (strategy)
         {
-            int x = Random.Range(0, width);
-            int y = Random.Range(0, height);
-            int index = GetGridIndex(x, y, width);
-
-            if (stage.gridData[index] == 0 && IsSpacedFromOtherColors(stage, x, y))
-            {
-                stage.gridData[index] = colorId;
+            case PlacementStrategy.Clustered:
+                return PlaceClustered(stage, colorId, candidates);
+            case PlacementStrategy.Scattered:
+                return PlaceScattered(stage, colorId, candidates);
+            case PlacementStrategy.Linear:
+                return PlaceLinear(stage, colorId, candidates);
+            case PlacementStrategy.Random:
+            default:
+                foreach (var pos in candidates)
+                {
+                    if (IsSpacedFromOtherColors(stage, pos.x, pos.y))
+                    {
+                        stage.gridData[GetGridIndex(pos.x, pos.y, stage.gridSize.x)] = colorId;
+                        return true;
+                    }
+                }
+                stage.gridData[GetGridIndex(candidates[0].x, candidates[0].y, stage.gridSize.x)] = colorId;
                 return true;
-            }
+        }
+    }
+
+    private bool PlaceClustered(StageData stage, int colorId, List<Vector2Int> candidates)
+    {
+        List<Vector2Int> existing = GetColorTilePositions(stage);
+        if (existing.Count == 0)
+        {
+            stage.gridData[GetGridIndex(candidates[0].x, candidates[0].y, stage.gridSize.x)] = colorId;
+            return true;
         }
 
-        return false;
+        var bestPos = candidates
+            .OrderBy(c => existing.Min(e => Vector2Int.Distance(c, e)))
+            .First();
+
+        stage.gridData[GetGridIndex(bestPos.x, bestPos.y, stage.gridSize.x)] = colorId;
+        return true;
+    }
+
+    private bool PlaceScattered(StageData stage, int colorId, List<Vector2Int> candidates)
+    {
+        List<Vector2Int> existing = GetColorTilePositions(stage);
+        if (existing.Count == 0)
+        {
+            stage.gridData[GetGridIndex(candidates[0].x, candidates[0].y, stage.gridSize.x)] = colorId;
+            return true;
+        }
+
+        var bestCandidate = candidates
+            .Select(c => new { Pos = c, MinDist = existing.Min(e => Vector2Int.Distance(c, e)) })
+            .OrderByDescending(x => x.MinDist)
+            .First();
+
+        stage.gridData[GetGridIndex(bestCandidate.Pos.x, bestCandidate.Pos.y, stage.gridSize.x)] = colorId;
+        return true;
+    }
+
+    private bool PlaceLinear(StageData stage, int colorId, List<Vector2Int> candidates)
+    {
+        List<Vector2Int> existing = GetColorTilePositions(stage);
+        if (existing.Count == 0)
+        {
+            stage.gridData[GetGridIndex(candidates[0].x, candidates[0].y, stage.gridSize.x)] = colorId;
+            return true;
+        }
+
+        Vector2Int lastPos = existing.Last();
+
+        var linearCandidates = candidates
+            .Where(c => c.x == lastPos.x || c.y == lastPos.y)
+            .OrderBy(c => Vector2Int.Distance(c, lastPos))
+            .ToList();
+
+        if (linearCandidates.Count > 0)
+        {
+            stage.gridData[GetGridIndex(linearCandidates[0].x, linearCandidates[0].y, stage.gridSize.x)] = colorId;
+            return true;
+        }
+
+        return PlaceScattered(stage, colorId, candidates);
     }
 
     private bool IsSpacedFromOtherColors(StageData stage, int x, int y)
     {
-        // 상하좌우 인접 타일 검사
         int[] dx = { -1, 1, 0, 0 };
         int[] dy = { 0, 0, -1, 1 };
 
@@ -179,94 +517,43 @@ public class StageGenerator : MonoBehaviour
         {
             int nx = x + dx[i];
             int ny = y + dy[i];
-
             if (nx >= 0 && nx < stage.gridSize.x && ny >= 0 && ny < stage.gridSize.y)
             {
-                int index = GetGridIndex(nx, ny, stage.gridSize.x);
-                if (stage.gridData[index] > 0)
-                {
-                    return false; // 인접한 색상 타일 있음
-                }
+                if (stage.gridData[GetGridIndex(nx, ny, stage.gridSize.x)] > 0) return false;
             }
         }
-
         return true;
     }
 
     private List<Vector2Int> GetEmptyTiles(StageData stage)
     {
         List<Vector2Int> emptyTiles = new List<Vector2Int>();
-
         for (int y = 0; y < stage.gridSize.y; y++)
         {
             for (int x = 0; x < stage.gridSize.x; x++)
             {
-                int index = GetGridIndex(x, y, stage.gridSize.x);
-                if (stage.gridData[index] == 0)
+                if (stage.gridData[GetGridIndex(x, y, stage.gridSize.x)] == 0)
                 {
                     emptyTiles.Add(new Vector2Int(x, y));
                 }
             }
         }
-
         return emptyTiles;
     }
 
-    private void PlaceWalls(StageData stage, int count)
+    private List<Vector2Int> GetColorTilePositions(StageData stage)
     {
-        List<Vector2Int> emptyTiles = GetEmptyTiles(stage);
-
-        for (int i = 0; i < count && emptyTiles.Count > 0; i++)
+        List<Vector2Int> positions = new List<Vector2Int>();
+        for (int i = 0; i < stage.gridData.Length; i++)
         {
-            int index = Random.Range(0, emptyTiles.Count);
-            Vector2Int pos = emptyTiles[index];
-            int gridIndex = GetGridIndex(pos.x, pos.y, stage.gridSize.x);
-            stage.gridData[gridIndex] = -1; // 벽
-            emptyTiles.RemoveAt(index);
+            if (stage.gridData[i] > 0)
+                positions.Add(new Vector2Int(i % stage.gridSize.x, i / stage.gridSize.x));
         }
+        return positions;
     }
 
-    private void PlaceResetOrFakeTile(StageData stage, List<int> selectedIndices)
+    private int CountWalls(StageData stage)
     {
-        List<Vector2Int> emptyTiles = GetEmptyTiles(stage);
-        if (emptyTiles.Count == 0) return;
-
-        Vector2Int pos = emptyTiles[Random.Range(0, emptyTiles.Count)];
-        int gridIndex = GetGridIndex(pos.x, pos.y, stage.gridSize.x);
-        
-        // 50% 확률로 Reset 또는 FakeColor 선택
-        if (Random.Range(0, 2) == 0)
-        {
-            // Reset 타일
-            stage.gridData[gridIndex] = -2;
-        }
-        else
-        {
-            // FakeColor 타일: 사용되지 않은 색상 팔레트 중 하나 선택
-            List<int> unusedIndices = new List<int>();
-            for (int i = 0; i < baseColors.Length; i++)
-            {
-                if (!selectedIndices.Contains(i))
-                {
-                    unusedIndices.Add(i);
-                }
-            }
-
-            if (unusedIndices.Count > 0)
-            {
-                // 사용되지 않은 색상 중 랜덤 선택
-                int fakeColorIndex = unusedIndices[Random.Range(0, unusedIndices.Count)];
-                Color32 fakeColor = baseColors[fakeColorIndex];
-                
-                // FakeColor 정보를 StageData에 저장
-                stage.fakeColorRgb = new int[] { fakeColor.r, fakeColor.g, fakeColor.b };
-                stage.gridData[gridIndex] = -3;
-            }
-            else
-            {
-                // 사용되지 않은 색상이 없으면 Reset 타일로 대체
-                stage.gridData[gridIndex] = -2;
-            }
-        }
+        return stage.gridData.Count(x => x == -1);
     }
 }
