@@ -8,11 +8,11 @@
         "x": 2,
         "y": 3
     },
-    "maxMoves": 15,
+    "maxMoves": 13,
     "colorClear": [
-        135,
-        200,
-        138
+        132,
+        156,
+        134
     ],
     "colorPalette": [
         {
@@ -26,36 +26,41 @@
         {
             "id": "2",
             "rgb": [
-                255,
-                246,
-                75
+                247,
+                150,
+                70
             ]
         }
     ],
     "gridData": [
         0,
         0,
-        0,
         1,
         0,
         0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
         2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        -2,
         0,
         0
     ],
     "fakeColorRgb": [],
     "difficulty": 1,
-    "solutionMoves": 6,
+    "solutionMoves": 5,
+    "totalRepeats": 2,
+    "solutionColorRepeats": [
+        1,
+        1
+    ],
     "placementStrategy": "Random",
     "colorCount": 2,
     "wallCount": 0,
-    "hasSpecialTiles": false,
-    "createdDate": "2025-12-05T06:11:26.8521789Z"
+    "hasSpecialTiles": true,
+    "createdDate": "2025-12-05T14:46:57.8123413Z"
 }

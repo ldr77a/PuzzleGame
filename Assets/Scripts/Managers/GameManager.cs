@@ -35,7 +35,30 @@ public class GameManager : MonoBehaviour
 
     public void StartStage(int stageId)
     {
-        currentStageData = stageLoader.LoadStage(stageId);
+        // StageLoader 시도 (실패하면 JSON 직접 로드)
+        currentStageData = stageLoader != null ? stageLoader.LoadStage(stageId) : null;
+
+        if (currentStageData == null)
+        {
+            // JSON 리소스에서 직접 로드 시도
+            TextAsset stageFile = Resources.Load<TextAsset>($"Stages/stage_{stageId:000}");
+            if (stageFile != null)
+            {
+                try
+                {
+                    currentStageData = JsonUtility.FromJson<StageData>(stageFile.text);
+                }
+                catch
+                {
+                    Debug.LogError($"스테이지 JSON 파싱 실패: {stageId}");
+                }
+            }
+            else
+            {
+                Debug.LogError($"스테이지 파일 로드 실패: stage_{stageId:000}");
+                return;
+            }
+        }
 
         if (currentStageData == null)
         {
@@ -44,6 +67,15 @@ public class GameManager : MonoBehaviour
         }
 
         targetColor = ColorMixer.ArrayToColor(currentStageData.colorClear);
+
+        // ★ NEW: 기존 이벤트 구독 해제
+        playerController.OnColorChanged -= uiManager.UpdatePlayerColor;
+        playerController.OnMovesChanged -= uiManager.UpdateMovesCounter;
+        playerController.OnWin -= HandleWin;
+        playerController.OnLose -= HandleLose;
+
+        // ★ NEW: PlayerController 다시 활성화 (Replay 시)
+        playerController.enabled = true;
 
         // 시스템 초기화 순서
         gridManager.GenerateGrid(currentStageData);

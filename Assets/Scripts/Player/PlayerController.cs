@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEngine.UI;
 using System.Collections.Generic;
 
@@ -41,8 +41,11 @@ public class PlayerController : MonoBehaviour
 
     void Update()
     {
-        // 플레이어를 항상 맨 위에 표시 (매 프레임 강제 설정)
-        playerVisual.rectTransform.SetAsLastSibling();
+        // null 체크 후 플레이어를 항상 맨 위에 표시 (매 프레임 강제 설정)
+        if (playerVisual != null && playerVisual.rectTransform != null)
+        {
+            playerVisual.rectTransform.SetAsLastSibling();
+        }
 
         // 이동 중에는 입력 차단
         if (isMoving) return;
@@ -58,6 +61,7 @@ public class PlayerController : MonoBehaviour
         {
             CollectColor();
         }
+        if (transform == null || gameObject == null) return;
     }
 
     private void TryMove(int deltaX, int deltaY)

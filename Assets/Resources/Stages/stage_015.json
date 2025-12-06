@@ -5,30 +5,30 @@
         "y": 5
     },
     "playerStartPosition": {
-        "x": 0,
-        "y": 0
+        "x": 2,
+        "y": 4
     },
-    "maxMoves": 10,
+    "maxMoves": 15,
     "colorClear": [
-        199,
-        101,
-        63
+        221,
+        52,
+        61
     ],
     "colorPalette": [
         {
             "id": "1",
             "rgb": [
-                171,
-                213,
-                84
+                232,
+                48,
+                48
             ]
         },
         {
             "id": "2",
             "rgb": [
-                232,
-                48,
-                48
+                174,
+                81,
+                199
             ]
         }
     ],
@@ -44,27 +44,32 @@
         0,
         0,
         0,
-        -1,
-        -1,
+        2,
+        0,
+        -2,
+        0,
+        0,
+        0,
+        0,
         1,
         0,
         0,
-        0,
-        0,
-        2,
-        0,
-        0,
-        0,
+        -1,
         0,
         0,
         0
     ],
     "fakeColorRgb": [],
     "difficulty": 2,
-    "solutionMoves": 6,
-    "placementStrategy": "Clustered",
+    "solutionMoves": 9,
+    "totalRepeats": 6,
+    "solutionColorRepeats": [
+        5,
+        1
+    ],
+    "placementStrategy": "Random",
     "colorCount": 2,
-    "wallCount": 2,
-    "hasSpecialTiles": false,
-    "createdDate": "2025-12-05T06:11:35.5505456Z"
+    "wallCount": 1,
+    "hasSpecialTiles": true,
+    "createdDate": "2025-12-05T14:47:30.5613344Z"
 }

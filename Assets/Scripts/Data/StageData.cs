@@ -38,6 +38,7 @@ public class StageData
     public int difficulty;                      // 1=Easy, 2=Medium, 3=Hard
     public int solutionMoves;                   // A* 솔루션 최소 이동 횟수
     public int totalRepeats;                    // 목표 색상 혼합에 필요한 총 색상 수집 횟수
+    public int[] solutionColorRepeats;          // 각 색상별 수집 횟수 (예: [5, 1, 2])
     public string placementStrategy;            // "Random", "Clustered", "Scattered", "Linear"
     public int colorCount;                      // 사용된 색상 개수
     public int wallCount;                       // 벽 개수

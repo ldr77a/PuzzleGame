@@ -13,6 +13,7 @@ public class UIManager : MonoBehaviour
     [Header("결과 패널")]
     [SerializeField] private GameObject winPanel;
     [SerializeField] private GameObject losePanel;
+    [SerializeField] private Button replayButton;  // ★ NEW: Replay 버튼
 
     private Color32 targetColor;
 
@@ -25,6 +26,14 @@ public class UIManager : MonoBehaviour
 
         if (winPanel != null) winPanel.SetActive(false);
         if (losePanel != null) losePanel.SetActive(false);
+
+        // ★ NEW: Replay 버튼 초기화
+        if (replayButton != null)
+        {
+            replayButton.onClick.RemoveAllListeners();
+            replayButton.onClick.AddListener(OnReplayClicked);
+            replayButton.gameObject.SetActive(false); // 초기에는 숨김
+        }
     }
 
     public void UpdatePlayerColor(Color32 color)
@@ -85,6 +94,12 @@ public class UIManager : MonoBehaviour
         {
             winPanel.SetActive(true);
         }
+
+        // ★ NEW: Replay 버튼 활성화
+        if (replayButton != null)
+        {
+            replayButton.gameObject.SetActive(true);
+        }
     }
 
     public void ShowLoseScreen()
@@ -92,6 +107,26 @@ public class UIManager : MonoBehaviour
         if (losePanel != null)
         {
             losePanel.SetActive(true);
+        }
+
+        // ★ NEW: Replay 버튼 활성화
+        if (replayButton != null)
+        {
+            replayButton.gameObject.SetActive(true);
+        }
+    }
+
+    // ★ NEW: Replay 버튼 클릭 핸들러
+    private void OnReplayClicked()
+    {
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.RestartStage();
+            Debug.Log("스테이지 재시작!");
+        }
+        else
+        {
+            Debug.LogWarning("GameManager를 찾을 수 없습니다!");
         }
     }
 }

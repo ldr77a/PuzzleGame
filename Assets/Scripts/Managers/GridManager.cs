@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEngine.UI;
 using System.Collections.Generic;
 
@@ -114,6 +114,83 @@ public class GridManager : MonoBehaviour
                 tile.Initialize(x, y, gridValue, colorPalette, fakeColor);
 
                 tiles[x, y] = tile;
+            }
+        }
+    }
+
+    public void GenerateGrid(StageData data, Transform parent, float cellSize = 50f)
+    {
+        // 1. 초기화
+        foreach (Transform child in parent) Destroy(child.gameObject);
+
+        // 2. 레이아웃 설정
+        GridLayoutGroup gridLayout = parent.GetComponent<GridLayoutGroup>();
+        if (gridLayout == null) gridLayout = parent.gameObject.AddComponent<GridLayoutGroup>();
+
+        gridLayout.cellSize = new Vector2(cellSize, cellSize);
+        gridLayout.spacing = new Vector2(2, 2);
+        gridLayout.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
+        gridLayout.constraintCount = data.gridSize.x;
+
+        gridLayout.childAlignment = TextAnchor.MiddleCenter;
+
+        // 3. 임시 팔레트 생성 (색상 찾기용)
+        Dictionary<string, Color32> tempPalette = new Dictionary<string, Color32>();
+        foreach (var entry in data.colorPalette)
+        {
+            tempPalette[entry.id] = ColorMixer.ArrayToColor(entry.rgb);
+        }
+
+        // 4. 타일 생성
+        foreach (int tileId in data.gridData)
+        {
+            GameObject tileObj = Instantiate(tilePrefab, parent);
+
+            // 타일 이미지 컴포넌트 가져오기
+            Image img = tileObj.GetComponent<Image>();
+            if (img != null)
+            {
+                // 툴 프리뷰용이니 복잡한 로직 없이 색상만 표현
+                if (tileId > 0 && tempPalette.ContainsKey(tileId.ToString()))
+                {
+                    img.sprite = null;
+                    img.color = tempPalette[tileId.ToString()]; // 색상 타일
+                }
+                else if (tileId == -1)
+                {
+                    // Wall 이미지 로드
+                    Sprite wallSprite = Resources.Load<Sprite>("Image/Wall");
+                    if (wallSprite != null)
+                    {
+                        img.sprite = wallSprite;
+                        img.color = Color.white;
+                    }
+                    else
+                    {
+                        img.sprite = null;
+                        img.color = Color.black; // 폴백: 검정색
+                    }
+                }
+                else if (tileId == -2)
+                {
+                    // Reset 타일 이미지 로드
+                    Sprite resetSprite = Resources.Load<Sprite>("Image/Reset");
+                    if (resetSprite != null)
+                    {
+                        img.sprite = resetSprite;
+                        img.color = Color.white;
+                    }
+                    else
+                    {
+                        img.sprite = null;
+                        img.color = new Color(0.8f, 0.8f, 0.8f, 1f); // 폴백: 밝은 회색
+                    }
+                }
+                else
+                {
+                    img.sprite = null;
+                    img.color = Color.white; // 빈공간 (흰색)
+                }
             }
         }
     }

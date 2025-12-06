@@ -107,6 +107,31 @@ public class StageGenerator : MonoBehaviour
         return y * width + x;
     }
 
+    // GCD (최대공약수) 계산 헬퍼 함수
+    private int CalculateGCD(int a, int b)
+    {
+        while (b != 0)
+        {
+            int temp = b;
+            b = a % b;
+            a = temp;
+        }
+        return a;
+    }
+
+    // 배열의 GCD 계산
+    private int CalculateArrayGCD(int[] array)
+    {
+        if (array.Length == 0) return 0;
+        int result = array[0];
+        for (int i = 1; i < array.Length; i++)
+        {
+            result = CalculateGCD(result, array[i]);
+            if (result == 1) return 1; // 조기 종료 (GCD가 1이면 더 이상 확인할 필요 없음)
+        }
+        return result;
+    }
+
     public StageData GenerateStage(int stageId, int difficulty)
     {
         StageData stage = new StageData();
@@ -144,34 +169,78 @@ public class StageGenerator : MonoBehaviour
         {
             // Hard 모드: 불균형 혼합 (한 색상이 지배적)
             // 예: totalRepeats=8, colorCount=3 → [5, 2, 1] 또는 [6, 1, 1]
-            int dominantIndex = Random.Range(0, colorCount);
+            // ★ GCD 검증: 색상 배분 비율은 서로소(Coprime) 상태여야 함 [2,2,2]는 불가
+            bool colorDistributionValid = false;
+            int[] colorRepeats = null;
+            int gcdRetryCount = 0;
+            const int maxGCDRetries = 100; // 무한 루프 방지
 
-            // 남은 반복 횟수를 다른 색상들에게 분배
-            int remainingRepeats = totalRepeats;
-            int[] colorRepeats = new int[colorCount];
-
-            // 지배 색상은 최소 절반 이상
-            int dominantMin = Mathf.Max(totalRepeats / 2, totalRepeats - (colorCount - 1));
-            colorRepeats[dominantIndex] = Random.Range(dominantMin, totalRepeats - (colorCount - 1) + 1);
-            remainingRepeats -= colorRepeats[dominantIndex];
-
-            // 나머지 색상들에게 랜덤 분배
-            for (int i = 0; i < colorCount; i++)
+            // GCD 검증을 통과할 때까지 재시도
+            while (!colorDistributionValid && gcdRetryCount < maxGCDRetries)
             {
-                if (i != dominantIndex)
+                gcdRetryCount++;
+                colorRepeats = new int[colorCount];
+                int dominantIndex = Random.Range(0, colorCount);
+
+                // 남은 반복 횟수를 다른 색상들에게 분배
+                int remainingRepeats = totalRepeats;
+
+                // 지배 색상은 최소 절반 이상
+                int dominantMin = Mathf.Max(totalRepeats / 2, totalRepeats - (colorCount - 1));
+                colorRepeats[dominantIndex] = Random.Range(dominantMin, totalRepeats - (colorCount - 1) + 1);
+                remainingRepeats -= colorRepeats[dominantIndex];
+
+                // 나머지 색상들에게 랜덤 분배
+                for (int i = 0; i < colorCount; i++)
                 {
-                    int maxForThis = Mathf.Min(remainingRepeats, remainingRepeats - (colorCount - i - 1 - (i < dominantIndex ? 1 : 0)));
-                    colorRepeats[i] = Random.Range(1, maxForThis + 1);
-                    remainingRepeats -= colorRepeats[i];
+                    if (i != dominantIndex)
+                    {
+                        int maxForThis = Mathf.Min(remainingRepeats, remainingRepeats - (colorCount - i - 1 - (i < dominantIndex ? 1 : 0)));
+                        colorRepeats[i] = Random.Range(1, maxForThis + 1);
+                        remainingRepeats -= colorRepeats[i];
+                    }
+                }
+
+                // 남은 횟수가 있으면 랜덤 색상에 추가
+                while (remainingRepeats > 0)
+                {
+                    int randomColorIndex = Random.Range(0, colorCount);
+                    colorRepeats[randomColorIndex]++;
+                    remainingRepeats--;
+                }
+
+                // ★ NEW: GCD 검증 - 배분이 서로소(Coprime)여야 함
+                int gcd = CalculateArrayGCD(colorRepeats);
+                if (gcd == 1)
+                {
+                    colorDistributionValid = true;
                 }
             }
 
-            // 남은 횟수가 있으면 랜덤 색상에 추가
-            while (remainingRepeats > 0)
+            // GCD 검증 실패 시 폴백 (이론적으로 발생 불가, 안전장치)
+            if (!colorDistributionValid)
             {
-                int randomColorIndex = Random.Range(0, colorCount);
-                colorRepeats[randomColorIndex]++;
-                remainingRepeats--;
+                Debug.LogWarning($"[경고] Hard 모드 GCD 검증 실패 (시도: {maxGCDRetries}). 기본 불균형 분배 사용");
+                colorRepeats = new int[colorCount];
+                int dominantIndex = Random.Range(0, colorCount);
+                int remainingRepeats = totalRepeats;
+                int dominantMin = Mathf.Max(totalRepeats / 2, totalRepeats - (colorCount - 1));
+                colorRepeats[dominantIndex] = dominantMin;
+                remainingRepeats -= colorRepeats[dominantIndex];
+                for (int i = 0; i < colorCount; i++)
+                {
+                    if (i != dominantIndex && remainingRepeats > 0)
+                    {
+                        colorRepeats[i] = 1;
+                        remainingRepeats--;
+                    }
+                }
+                while (remainingRepeats > 0)
+                {
+                    int randomColorIndex = Random.Range(0, colorCount);
+                    colorRepeats[randomColorIndex]++;
+                    remainingRepeats--;
+                }
             }
 
             // 목표 색상 리스트 생성
@@ -188,20 +257,60 @@ public class StageGenerator : MonoBehaviour
         {
             // Easy/Medium 모드: 균등 혼합
             // 예: totalRepeats=5, colorCount=2 → [3, 2] 또는 [2, 3]
-            int[] colorRepeats = new int[colorCount];
-            int baseRepeat = totalRepeats / colorCount;
-            int remainder = totalRepeats % colorCount;
+            // ★ GCD 검증: 색상 배분 비율은 서로소(Coprime) 상태여야 함 [2,2,2]는 불가
+            bool colorDistributionValid = false;
+            int[] colorRepeats = null;
+            int gcpRetryCount = 0;
+            const int maxGCDRetries = 100; // 무한 루프 방지
 
-            for (int i = 0; i < colorCount; i++)
+            // GCD 검증을 통과할 때까지 재시도
+            while (!colorDistributionValid && gcpRetryCount < maxGCDRetries)
             {
-                colorRepeats[i] = baseRepeat;
+                gcpRetryCount++;
+                colorRepeats = new int[colorCount];
+
+                // ★ 중요: colorCount가 1보다 클 때, GCD=1을 보장하기 위해 비균등 분배 사용
+                if (colorCount > 1)
+                {
+                    // 완전 랜덤 분배로 모든 조합 시도 (GCD=1일 확률 높음)
+                    int remaining = totalRepeats;
+                    for (int i = 0; i < colorCount - 1; i++)
+                    {
+                        int maxForThis = remaining - (colorCount - i - 1); // 나머지 색상에 최소 1개씩
+                        colorRepeats[i] = Random.Range(1, Mathf.Max(2, maxForThis + 1));
+                        remaining -= colorRepeats[i];
+                    }
+                    colorRepeats[colorCount - 1] = remaining;
+                }
+                else
+                {
+                    // colorCount == 1인 경우 (단일 색상)
+                    colorRepeats[0] = totalRepeats;
+                }
+
+                // ★ NEW: GCD 검증 - 배분이 서로소(Coprime)여야 함
+                int gcd = CalculateArrayGCD(colorRepeats);
+                if (gcd == 1)
+                {
+                    colorDistributionValid = true;
+                }
             }
 
-            // 나머지를 랜덤 색상에 분배
-            for (int i = 0; i < remainder; i++)
+            // GCD 검증 실패 시 폴백 (이론적으로 발생 불가, 안전장치)
+            if (!colorDistributionValid)
             {
-                int randomIndex = Random.Range(0, colorCount);
-                colorRepeats[randomIndex]++;
+                Debug.LogWarning($"[경고] GCD 검증 실패 (시도: {maxGCDRetries}). 기본 균등 분배 사용");
+                colorRepeats = new int[colorCount];
+                int baseRepeat = totalRepeats / colorCount;
+                int remainder = totalRepeats % colorCount;
+                for (int i = 0; i < colorCount; i++)
+                {
+                    colorRepeats[i] = baseRepeat;
+                }
+                for (int i = 0; i < remainder; i++)
+                {
+                    colorRepeats[i]++;
+                }
             }
 
             // 목표 색상 리스트 생성
@@ -218,48 +327,31 @@ public class StageGenerator : MonoBehaviour
         Color32 targetColor = ColorMixer.MixColors(targetMix);
         stage.colorClear = new int[] { targetColor.r, targetColor.g, targetColor.b };
 
-        // 디버그: 목표 혼합 정보 출력
-        string mixInfo = $"Stage {stageId} 목표: 총 {totalRepeats}번 혼합 [";
-        if (profile.useUnbalancedMix && colorCount >= 2)
+        // 디버그: 목표 혼합 정보 출력 및 솔루션 정보 저장
+        // targetMix 리스트로부터 색상별 수집 횟수 계산
+        int[] debugColorRepeats = new int[colorCount];
+        foreach (var color in targetMix)
         {
-            // Hard 모드
-            int[] colorRepeats = new int[colorCount];
-            foreach (var color in targetMix)
+            for (int i = 0; i < colorCount; i++)
             {
-                for (int i = 0; i < colorCount; i++)
+                Color32 paletteColor = ColorMixer.ArrayToColor(stage.colorPalette[i].rgb);
+                if (color.r == paletteColor.r && color.g == paletteColor.g && color.b == paletteColor.b)
                 {
-                    Color32 paletteColor = ColorMixer.ArrayToColor(stage.colorPalette[i].rgb);
-                    if (color.r == paletteColor.r && color.g == paletteColor.g && color.b == paletteColor.b)
-                    {
-                        colorRepeats[i]++;
-                        break;
-                    }
+                    debugColorRepeats[i]++;
+                    break;
                 }
             }
-            for (int i = 0; i < colorCount; i++)
-            {
-                mixInfo += $"색{i + 1}:{colorRepeats[i]}회 ";
-            }
         }
-        else
+
+        // ★ NEW: 각 색상별 수집 횟수를 JSON에 저장
+        stage.solutionColorRepeats = new int[colorCount];
+        System.Array.Copy(debugColorRepeats, stage.solutionColorRepeats, colorCount);
+
+        int debugGCD = CalculateArrayGCD(debugColorRepeats);
+        string mixInfo = $"Stage {stageId} 목표: 총 {totalRepeats}번 혼합 (GCD={debugGCD}) [";
+        for (int i = 0; i < colorCount; i++)
         {
-            // Easy/Medium 모드
-            int[] colorRepeats = new int[colorCount];
-            int baseRepeat = totalRepeats / colorCount;
-            int remainder = totalRepeats % colorCount;
-            for (int i = 0; i < colorCount; i++)
-            {
-                colorRepeats[i] = baseRepeat;
-            }
-            for (int i = 0; i < remainder; i++)
-            {
-                int randomIndex = Random.Range(0, colorCount);
-                colorRepeats[randomIndex]++;
-            }
-            for (int i = 0; i < colorCount; i++)
-            {
-                mixInfo += $"색{i + 1}:{colorRepeats[i]}회 ";
-            }
+            mixInfo += $"색{i + 1}:{debugColorRepeats[i]}회 ";
         }
         mixInfo += "]";
         Debug.Log(mixInfo);
