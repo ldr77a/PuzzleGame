@@ -15,6 +15,7 @@ public class UIManager : MonoBehaviour
     [SerializeField] private GameObject winPanel;
     [SerializeField] private GameObject losePanel;
     [SerializeField] private Button replayButton;  // ★ NEW: Replay 버튼
+    [SerializeField] private Button nextStageButton;  // ★ NEW: Next Stage 버튼
 
     [Header("Solution 버튼")]
     [SerializeField] private Button solutionButton;
@@ -43,6 +44,14 @@ public class UIManager : MonoBehaviour
             replayButton.onClick.RemoveAllListeners();
             replayButton.onClick.AddListener(OnReplayClicked);
             replayButton.gameObject.SetActive(false); // 초기에는 숨김
+        }
+
+        // ★ NEW: Next Stage 버튼 초기화
+        if (nextStageButton != null)
+        {
+            nextStageButton.onClick.RemoveAllListeners();
+            nextStageButton.onClick.AddListener(OnNextStageClicked);
+            nextStageButton.gameObject.SetActive(false); // 초기에는 숨김
         }
 
         // ★ NEW: Solution 버튼 초기화
@@ -127,6 +136,12 @@ public class UIManager : MonoBehaviour
         {
             replayButton.gameObject.SetActive(true);
         }
+
+        // ★ NEW: Next Stage 버튼 활성화 (승리 시에만 표시)
+        if (nextStageButton != null)
+        {
+            nextStageButton.gameObject.SetActive(true);
+        }
     }
 
     public void ShowLoseScreen()
@@ -150,6 +165,20 @@ public class UIManager : MonoBehaviour
         {
             GameManager.Instance.RestartStage();
             Debug.Log("스테이지 재시작!");
+        }
+        else
+        {
+            Debug.LogWarning("GameManager를 찾을 수 없습니다!");
+        }
+    }
+
+    // ★ NEW: Next Stage 버튼 클릭 핸들러
+    private void OnNextStageClicked()
+    {
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.LoadNextStage();
+            Debug.Log("다음 스테이지로 이동!");
         }
         else
         {

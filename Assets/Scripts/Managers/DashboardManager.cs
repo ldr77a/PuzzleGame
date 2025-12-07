@@ -55,7 +55,7 @@ public class DashboardManager : MonoBehaviour
     {
         // Sort 드롭다운 초기화
         sortDropdown.ClearOptions();
-        sortDropdown.AddOptions(new List<string> { "ID", "Grid Size" });
+        sortDropdown.AddOptions(new List<string> { "ID", "Moves" });
         sortDropdown.value = 0;
 
         // Level 필터 드롭다운 초기화
@@ -137,9 +137,9 @@ public class DashboardManager : MonoBehaviour
         {
             query = query.OrderBy(s => s.stageId);
         }
-        else if (sortDropdown.value == 1) // "Grid Size"
+        else if (sortDropdown.value == 1) // "Moves"
         {
-            query = query.OrderByDescending(s => s.gridSize.x);
+            query = query.OrderBy(s => s.solutionMoves);
         }
 
         foreach (var stage in query)

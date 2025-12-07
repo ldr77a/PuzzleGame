@@ -44,8 +44,16 @@ public class GridManager : MonoBehaviour
             colorPalette[entry.id] = ColorMixer.ArrayToColor(entry.rgb);
         }
 
-        // FakeColor 색상 준비 (colorPalette에 없는 색상 중 랜덤 선택)
-        Color32 fakeColor = GenerateFakeColor(colorPalette);
+        // FakeColor 색상 준비
+        Color32 fakeColor;
+        if (stageData.fakeColorRgb != null && stageData.fakeColorRgb.Length == 3)
+        {
+            fakeColor = ColorMixer.ArrayToColor(stageData.fakeColorRgb);
+        }
+        else
+        {
+            fakeColor = GenerateFakeColor(colorPalette);
+        }
 
         // GridLayoutGroup 컴포넌트 가져오기
         GridLayoutGroup gridLayout = gridContainer.GetComponent<GridLayoutGroup>();
@@ -184,6 +192,19 @@ public class GridManager : MonoBehaviour
                     {
                         img.sprite = null;
                         img.color = new Color(0.8f, 0.8f, 0.8f, 1f); // 폴백: 밝은 회색
+                    }
+                }
+                else if (tileId == -3) // FakeColor 타일
+                {
+                    img.sprite = null;
+                    // 저장된 가짜 색상이 있으면 사용, 없으면 디버그용 색상(Cyan)
+                    if (data.fakeColorRgb != null && data.fakeColorRgb.Length == 3)
+                    {
+                        img.color = ColorMixer.ArrayToColor(data.fakeColorRgb);
+                    }
+                    else
+                    {
+                        img.color = new Color32(0, 255, 255, 255); // Cyan (Fallback)
                     }
                 }
                 else

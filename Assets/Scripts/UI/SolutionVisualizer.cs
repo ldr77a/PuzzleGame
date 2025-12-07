@@ -39,7 +39,7 @@ public class SolutionVisualizer : MonoBehaviour
         lineObj.transform.SetParent(parent, false);
 
         Image lineImage = lineObj.AddComponent<Image>();
-        lineImage.color = new Color(0.8f, 0.2f, 0.2f, 0.8f); // 빨간색, 80% 투명도
+        lineImage.color = new Color(0.2f, 0.2f, 0.2f, 0.8f); // 진한 회색, 80% 투명도
         lineImage.raycastTarget = false; // 마우스 이벤트 차단 방지
 
         RectTransform lineRT = lineImage.rectTransform;

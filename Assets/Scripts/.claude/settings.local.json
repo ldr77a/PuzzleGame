@@ -1,17 +1,7 @@
 {
   "permissions": {
     "allow": [
-      "Bash(cat:*)",
-      "Bash(git -C /c/Users/PC-03/Desktop/unity/Personal/PuzzleGame log --oneline -20)",
-      "Bash(git -C /c/Users/PC-03/Desktop/unity/Personal/PuzzleGame/PuzzleGame log --oneline --all -20)",
-      "Bash(dir:*)",
-      "Bash(\"C:/Program Files/Unity/Hub/Editor/2022.3.30f1/Editor/Unity.exe\" -projectPath \"c:/Users/qkrrk/Desktop/Unity/PuzzleGame\" -batchmode -nographics -logFile -)",
-      "Bash(git add:*)",
-      "Bash(git commit:*)",
-      "Bash(\"C:\\Program Files\\Unity\\Hub\\Editor\\2022.3.30f1\\Editor\\Unity.exe\" -projectPath \"C:\\Users\\qkrrk\\Desktop\\Unity\\PuzzleGame\" -batchmode -nographics -logFile -)",
-      "Bash(findstr:*)",
-      "Bash(git revert:*)",
-      "Bash(done)"
+      "Bash(ls:*)"
     ],
     "deny": [],
     "ask": []
