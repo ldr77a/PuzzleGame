@@ -34,6 +34,7 @@ public class DashboardManager : MonoBehaviour
     void Start()
     {
         LoadAllStages();
+        InitializeDropdowns();
 
         // 드롭다운 변경 시 리스트 갱신 이벤트 연결
         sortDropdown.onValueChanged.AddListener(delegate { RefreshList(); });
@@ -44,6 +45,19 @@ public class DashboardManager : MonoBehaviour
             verifyButton.onClick.AddListener(OnVerifyClicked);
 
         RefreshList(); // 시작하자마자 리스트 그리기
+    }
+
+    void InitializeDropdowns()
+    {
+        // Sort 드롭다운 초기화
+        sortDropdown.ClearOptions();
+        sortDropdown.AddOptions(new List<string> { "ID", "Grid Size" });
+        sortDropdown.value = 0;
+
+        // Filter 드롭다운 초기화
+        filterDropdown.ClearOptions();
+        filterDropdown.AddOptions(new List<string> { "All", "Hard (6x6+)" });
+        filterDropdown.value = 0;
     }
 
     void LoadAllStages()
