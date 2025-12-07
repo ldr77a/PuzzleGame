@@ -11,7 +11,9 @@ public class DashboardManager : MonoBehaviour
     [SerializeField] private Transform listContent;       // LeftPanel > Scroll View > Viewport > Content
     [SerializeField] private GameObject listItemPrefab;   // StageListItem 프리팹
     [SerializeField] private TMP_Dropdown sortDropdown;   // Dropdown_Sort
-    [SerializeField] private TMP_Dropdown filterDropdown; // Dropdown_Filter
+    [SerializeField] private TMP_Dropdown levelDropdown;  // Dropdown_Filter1 (Level)
+    [SerializeField] private TMP_Dropdown colorCountDropdown; // Dropdown_Filter3 (Color Count)
+    [SerializeField] private TMP_Dropdown totalColorDropdown; // Dropdown_Filter2 (Total Color)
 
     [Header("Center Panel")]
     [SerializeField] private Transform mainGridParent;    // CenterPanel > Play 오브젝트 (타일이 생성될 곳)
@@ -38,7 +40,9 @@ public class DashboardManager : MonoBehaviour
 
         // 드롭다운 변경 시 리스트 갱신 이벤트 연결
         sortDropdown.onValueChanged.AddListener(delegate { RefreshList(); });
-        filterDropdown.onValueChanged.AddListener(delegate { RefreshList(); });
+        levelDropdown.onValueChanged.AddListener(delegate { RefreshList(); });
+        colorCountDropdown.onValueChanged.AddListener(delegate { RefreshList(); });
+        totalColorDropdown.onValueChanged.AddListener(delegate { RefreshList(); });
 
         // 검증 버튼 등 추가 기능 연결 (버튼이 있다면)
         if (verifyButton != null)
@@ -54,10 +58,30 @@ public class DashboardManager : MonoBehaviour
         sortDropdown.AddOptions(new List<string> { "ID", "Grid Size" });
         sortDropdown.value = 0;
 
-        // Filter 드롭다운 초기화
-        filterDropdown.ClearOptions();
-        filterDropdown.AddOptions(new List<string> { "All", "Hard (6x6+)" });
-        filterDropdown.value = 0;
+        // Level 필터 드롭다운 초기화
+        levelDropdown.ClearOptions();
+        levelDropdown.AddOptions(new List<string> { "All", "Easy", "Medium", "Hard" });
+        levelDropdown.value = 0;
+
+        // Color Count 필터 드롭다운 초기화
+        colorCountDropdown.ClearOptions();
+        List<string> colorOptions = new List<string> { "All" };
+        for (int i = 2; i <= 5; i++)
+        {
+            colorOptions.Add(i.ToString());
+        }
+        colorCountDropdown.AddOptions(colorOptions);
+        colorCountDropdown.value = 0;
+
+        // Total Color 필터 드롭다운 초기화
+        totalColorDropdown.ClearOptions();
+        List<string> totalColorOptions = new List<string> { "All" };
+        for (int i = 2; i <= 10; i++)
+        {
+            totalColorOptions.Add(i.ToString());
+        }
+        totalColorDropdown.AddOptions(totalColorOptions);
+        totalColorDropdown.value = 0;
     }
 
     void LoadAllStages()
@@ -82,14 +106,41 @@ public class DashboardManager : MonoBehaviour
 
         IEnumerable<StageData> query = allStages;
 
-        // 필터 (예: Hard 모드만 보기)
-        if (filterDropdown.value == 1)
-            query = query.Where(s => s.gridSize.x >= 6);
+        // ========== 필터 적용 (AND 조건) ==========
 
-        if (sortDropdown.value == 0)
+        // 필터 1: Level (Difficulty)
+        int levelIndex = levelDropdown.value;
+        if (levelIndex > 0) // 0 = "All"
+        {
+            int targetDifficulty = levelIndex; // 1=Easy, 2=Medium, 3=Hard
+            query = query.Where(s => s.difficulty == targetDifficulty);
+        }
+
+        // 필터 2: Color Count
+        int colorCountIndex = colorCountDropdown.value;
+        if (colorCountIndex > 0) // 0 = "All"
+        {
+            int targetColorCount = colorCountIndex + 1; // 인덱스 1 -> 색상 2개
+            query = query.Where(s => s.colorCount == targetColorCount);
+        }
+
+        // 필터 3: Total Color (totalRepeats)
+        int totalColorIndex = totalColorDropdown.value;
+        if (totalColorIndex > 0) // 0 = "All"
+        {
+            int targetTotalRepeats = totalColorIndex + 1; // 인덱스 1 -> 2회
+            query = query.Where(s => s.totalRepeats == targetTotalRepeats);
+        }
+
+        // ========== 정렬 적용 ==========
+        if (sortDropdown.value == 0) // "ID"
+        {
             query = query.OrderBy(s => s.stageId);
-        else
+        }
+        else if (sortDropdown.value == 1) // "Grid Size"
+        {
             query = query.OrderByDescending(s => s.gridSize.x);
+        }
 
         foreach (var stage in query)
         {
