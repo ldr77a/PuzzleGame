@@ -1,0 +1,75 @@
+{
+    "stageId": 11,
+    "gridSize": {
+        "x": 5,
+        "y": 5
+    },
+    "playerStartPosition": {
+        "x": 4,
+        "y": 2
+    },
+    "maxMoves": 12,
+    "colorClear": [
+        193,
+        117,
+        67
+    ],
+    "colorPalette": [
+        {
+            "id": "1",
+            "rgb": [
+                232,
+                48,
+                48
+            ]
+        },
+        {
+            "id": "2",
+            "rgb": [
+                171,
+                213,
+                84
+            ]
+        }
+    ],
+    "gridData": [
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        -2,
+        0,
+        2,
+        -1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+    ],
+    "fakeColorRgb": [],
+    "difficulty": 2,
+    "solutionMoves": 7,
+    "totalRepeats": 5,
+    "solutionColorRepeats": [
+        2,
+        3
+    ],
+    "placementStrategy": "Random",
+    "colorCount": 2,
+    "wallCount": 1,
+    "hasSpecialTiles": true,
+    "createdDate": "2025-12-07T13:11:19.5934992Z"
+}

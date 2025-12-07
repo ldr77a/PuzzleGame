@@ -3018,16 +3018,16 @@ MonoBehaviour:
     - m_Text: All
       m_Image: {fileID: 0}
       m_Color: {r: 1, g: 1, b: 1, a: 1}
-    - m_Text: '2'
+    - m_Text: 2
       m_Image: {fileID: 0}
       m_Color: {r: 1, g: 1, b: 1, a: 1}
-    - m_Text: '3'
+    - m_Text: 3
       m_Image: {fileID: 0}
       m_Color: {r: 1, g: 1, b: 1, a: 1}
-    - m_Text: '4'
+    - m_Text: 4
       m_Image: {fileID: 0}
       m_Color: {r: 1, g: 1, b: 1, a: 1}
-    - m_Text: '5'
+    - m_Text: 5
       m_Image: {fileID: 0}
       m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_OnValueChanged:
@@ -5203,9 +5203,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: 'All
-
-'
+  m_text: All
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -6042,31 +6040,31 @@ MonoBehaviour:
     - m_Text: All
       m_Image: {fileID: 0}
       m_Color: {r: 1, g: 1, b: 1, a: 1}
-    - m_Text: '2'
+    - m_Text: 2
       m_Image: {fileID: 0}
       m_Color: {r: 1, g: 1, b: 1, a: 1}
-    - m_Text: '3'
+    - m_Text: 3
       m_Image: {fileID: 0}
       m_Color: {r: 1, g: 1, b: 1, a: 1}
-    - m_Text: '4'
+    - m_Text: 4
       m_Image: {fileID: 0}
       m_Color: {r: 1, g: 1, b: 1, a: 1}
-    - m_Text: '5'
+    - m_Text: 5
       m_Image: {fileID: 0}
       m_Color: {r: 1, g: 1, b: 1, a: 1}
-    - m_Text: '6'
+    - m_Text: 6
       m_Image: {fileID: 0}
       m_Color: {r: 1, g: 1, b: 1, a: 1}
-    - m_Text: '7'
+    - m_Text: 7
       m_Image: {fileID: 0}
       m_Color: {r: 1, g: 1, b: 1, a: 1}
-    - m_Text: '8'
+    - m_Text: 8
       m_Image: {fileID: 0}
       m_Color: {r: 1, g: 1, b: 1, a: 1}
-    - m_Text: '9'
+    - m_Text: 9
       m_Image: {fileID: 0}
       m_Color: {r: 1, g: 1, b: 1, a: 1}
-    - m_Text: '10'
+    - m_Text: 10
       m_Image: {fileID: 0}
       m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_OnValueChanged:
@@ -6658,7 +6656,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: -86.999985, y: 0.8}
+  m_AnchoredPosition: {x: -84.7, y: 0.8}
   m_SizeDelta: {x: 100, y: 50}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1518915765
@@ -7450,6 +7448,7 @@ MonoBehaviour:
   playerColorDisplay: {fileID: 506163839}
   targetColorDisplay: {fileID: 1625295614}
   movesText: {fileID: 1756632546}
+  stageIdText: {fileID: 531589374}
   winPanel: {fileID: 590191108}
   losePanel: {fileID: 561134357}
   replayButton: {fileID: 113431488}
@@ -7469,7 +7468,7 @@ MonoBehaviour:
   gridManager: {fileID: 1628258878}
   playerController: {fileID: 1628258877}
   uiManager: {fileID: 1628258880}
-  currentStageId: 11
+  currentStageId: 1
 --- !u!114 &1628258882
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -7485,7 +7484,9 @@ MonoBehaviour:
   listContent: {fileID: 79163656}
   listItemPrefab: {fileID: 3008104171500496510, guid: bf9247c72a95d7247942141b46f2a517, type: 3}
   sortDropdown: {fileID: 296764896}
-  filterDropdown: {fileID: 0}
+  levelDropdown: {fileID: 793697468}
+  colorCountDropdown: {fileID: 1222453635}
+  totalColorDropdown: {fileID: 707923765}
   mainGridParent: {fileID: 298978524}
   gridManager: {fileID: 1628258878}
   gameManager: {fileID: 1628258881}

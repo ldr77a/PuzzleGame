@@ -80,7 +80,7 @@ public class GameManager : MonoBehaviour
         // 시스템 초기화 순서
         gridManager.GenerateGrid(currentStageData);
         playerController.Initialize(currentStageData);
-        uiManager.Initialize(targetColor, currentStageData.maxMoves);
+        uiManager.Initialize(targetColor, currentStageData.maxMoves, currentStageData.stageId);
 
         // 이벤트 구독
         playerController.OnColorChanged += uiManager.UpdatePlayerColor;

@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.UI;
+using TMPro;
 
 public class Tile : MonoBehaviour
 {
@@ -11,6 +12,7 @@ public class Tile : MonoBehaviour
 
     [Header("컴포넌트")]
     public Image imageComponent;
+    [SerializeField] private TextMeshProUGUI countText;
 
     private bool hasPlayer = false;
 
@@ -78,5 +80,22 @@ public class Tile : MonoBehaviour
     {
         hasPlayer = present;
         // TODO: 플레이어 위치 시각적 표시 (테두리 등)
+    }
+
+    public void SetCollectionCount(int count)
+    {
+        if (countText != null && count > 0)
+        {
+            countText.text = count.ToString();
+            countText.gameObject.SetActive(true);
+        }
+    }
+
+    public void ClearCollectionCount()
+    {
+        if (countText != null)
+        {
+            countText.gameObject.SetActive(false);
+        }
     }
 }

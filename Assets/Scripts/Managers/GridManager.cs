@@ -269,4 +269,15 @@ public class GridManager : MonoBehaviour
         // 모든 색상이 사용된 경우 (불가능하지만 안전장치)
         return baseColors[Random.Range(0, baseColors.Length)];
     }
+
+    // ★ NEW: Public getter 메서드들
+    public Tile[,] GetTiles()
+    {
+        return tiles;
+    }
+
+    public StageData GetCurrentStage()
+    {
+        return currentStage;
+    }
 }

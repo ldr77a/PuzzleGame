@@ -8,7 +8,10 @@
       "Bash(\"C:/Program Files/Unity/Hub/Editor/2022.3.30f1/Editor/Unity.exe\" -projectPath \"c:/Users/qkrrk/Desktop/Unity/PuzzleGame\" -batchmode -nographics -logFile -)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(\"C:\\Program Files\\Unity\\Hub\\Editor\\2022.3.30f1\\Editor\\Unity.exe\" -projectPath \"C:\\Users\\qkrrk\\Desktop\\Unity\\PuzzleGame\" -batchmode -nographics -logFile -)"
+      "Bash(\"C:\\Program Files\\Unity\\Hub\\Editor\\2022.3.30f1\\Editor\\Unity.exe\" -projectPath \"C:\\Users\\qkrrk\\Desktop\\Unity\\PuzzleGame\" -batchmode -nographics -logFile -)",
+      "Bash(findstr:*)",
+      "Bash(git revert:*)",
+      "Bash(done)"
     ],
     "deny": [],
     "ask": []

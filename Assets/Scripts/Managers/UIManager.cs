@@ -8,6 +8,7 @@ public class UIManager : MonoBehaviour
     [SerializeField] private Image playerColorDisplay;   // PlayerColor
     [SerializeField] private Image targetColorDisplay;   // TargetColor
     [SerializeField] private TextMeshProUGUI movesText;  // MoveText
+    [SerializeField] private TextMeshProUGUI stageIdText; // StageID 텍스트
     // [SerializeField] private TextMeshProUGUI matchPercentageText;  // 일치도 표시 (미사용)
 
     [Header("결과 패널")]
@@ -17,12 +18,13 @@ public class UIManager : MonoBehaviour
 
     private Color32 targetColor;
 
-    public void Initialize(Color32 targetColorParam, int maxMoves)
+    public void Initialize(Color32 targetColorParam, int maxMoves, int stageId)
     {
         targetColor = targetColorParam;
         targetColorDisplay.color = targetColor;
         UpdatePlayerColor(new Color32(255, 255, 255, 255)); // 흰색
         UpdateMovesCounter(maxMoves);
+        UpdateStageId(stageId);
 
         if (winPanel != null) winPanel.SetActive(false);
         if (losePanel != null) losePanel.SetActive(false);
@@ -86,6 +88,14 @@ public class UIManager : MonoBehaviour
     public void UpdateMovesCounter(int remainingMoves)
     {
         movesText.text = $"Moves: {remainingMoves}";
+    }
+
+    public void UpdateStageId(int stageId)
+    {
+        if (stageIdText != null)
+        {
+            stageIdText.text = $"StageID: {stageId}";
+        }
     }
 
     public void ShowWinScreen()

@@ -16,8 +16,14 @@ public class StageListItem : MonoBehaviour
         data = stageData;
         onClickCallback = callback;
 
-        // 버튼 텍스트 예: "Stage 1 [Hard]"
-        string difficulty = data.gridSize.x >= 6 ? "Hard" : (data.gridSize.x >= 5 ? "Medium" : "Easy");
+        // 버튼 텍스트 예: "Stage 1 [Easy]"
+        string difficulty = data.difficulty switch
+        {
+            1 => "Easy",
+            2 => "Medium",
+            3 => "Hard",
+            _ => "Unknown"
+        };
         infoText.text = $"Stage {data.stageId} [{difficulty}]";
 
         // 클릭 이벤트 연결

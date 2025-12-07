@@ -180,28 +180,19 @@ public class StageGenerator : MonoBehaviour
             {
                 gcdRetryCount++;
                 colorRepeats = new int[colorCount];
-                int dominantIndex = Random.Range(0, colorCount);
 
-                // 남은 반복 횟수를 다른 색상들에게 분배
+                // ★ IMPROVED: 더 다양한 분배를 위해 완전 랜덤 접근
+                // 모든 색상이 최소 1개 이상씩 받도록 보장
                 int remainingRepeats = totalRepeats;
 
-                // 지배 색상은 최소 절반 이상
-                int dominantMin = Mathf.Max(totalRepeats / 2, totalRepeats - (colorCount - 1));
-                colorRepeats[dominantIndex] = Random.Range(dominantMin, totalRepeats - (colorCount - 1) + 1);
-                remainingRepeats -= colorRepeats[dominantIndex];
-
-                // 나머지 색상들에게 랜덤 분배
+                // 각 색상에 먼저 최소 1개씩 할당
                 for (int i = 0; i < colorCount; i++)
                 {
-                    if (i != dominantIndex)
-                    {
-                        int maxForThis = Mathf.Min(remainingRepeats, remainingRepeats - (colorCount - i - 1 - (i < dominantIndex ? 1 : 0)));
-                        colorRepeats[i] = Random.Range(1, maxForThis + 1);
-                        remainingRepeats -= colorRepeats[i];
-                    }
+                    colorRepeats[i] = 1;
                 }
+                remainingRepeats -= colorCount;
 
-                // 남은 횟수가 있으면 랜덤 색상에 추가
+                // 남은 반복 횟수를 랜덤하게 분배
                 while (remainingRepeats > 0)
                 {
                     int randomColorIndex = Random.Range(0, colorCount);
