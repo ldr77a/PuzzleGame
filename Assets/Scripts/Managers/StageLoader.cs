@@ -1,16 +1,35 @@
-using UnityEngine;
+﻿using UnityEngine;
 using System.IO;
 
 public class StageLoader : MonoBehaviour
 {
     public StageData LoadStage(int stageId)
     {
-        string fileName = $"Stages/stage_{stageId:000}";
-        TextAsset jsonFile = Resources.Load<TextAsset>(fileName);
+        string fileName = $"stage_{stageId:000}";
+        TextAsset jsonFile = null;
+
+        // 먼저 루트 Stages 폴더에서 찾기
+        string filePath = $"Stages/{fileName}";
+        jsonFile = Resources.Load<TextAsset>(filePath);
+
+        // 루트에서 못 찾으면 난이도 폴더에서 찾기
+        if (jsonFile == null)
+        {
+            string[] difficultyFolders = { "Stages/1. Easy", "Stages/2. Medium", "Stages/3. Hard" };
+            foreach (string folder in difficultyFolders)
+            {
+                filePath = $"{folder}/{fileName}";
+                jsonFile = Resources.Load<TextAsset>(filePath);
+                if (jsonFile != null)
+                {
+                    break; // 찾으면 루프 종료
+                }
+            }
+        }
 
         if (jsonFile == null)
         {
-            Debug.LogError($"스테이지 {stageId} 파일을 찾을 수 없습니다: {fileName}");
+            Debug.LogError($"스테이지 {stageId} 파일을 찾을 수 없습니다: Stages 폴더에서 찾을 수 없음");
             return null;
         }
 
