@@ -39,7 +39,7 @@ public class SolutionVisualizer : MonoBehaviour
         lineObj.transform.SetParent(parent, false);
 
         Image lineImage = lineObj.AddComponent<Image>();
-        lineImage.color = new Color(0.5f, 0.5f, 0.5f, 0.6f); // 회색, 60% 투명도
+        lineImage.color = new Color(0.8f, 0.2f, 0.2f, 0.8f); // 빨간색, 80% 투명도
         lineImage.raycastTarget = false; // 마우스 이벤트 차단 방지
 
         RectTransform lineRT = lineImage.rectTransform;
@@ -57,11 +57,11 @@ public class SolutionVisualizer : MonoBehaviour
         lineRT.anchorMin = new Vector2(0.5f, 0.5f);
         lineRT.anchorMax = new Vector2(0.5f, 0.5f);
         lineRT.anchoredPosition = midPoint;
-        lineRT.sizeDelta = new Vector2(distance, 3f); // 3픽셀 두께
+        lineRT.sizeDelta = new Vector2(distance, 10f); // 5픽셀 두께로 증가
         lineRT.rotation = Quaternion.Euler(0, 0, angle);
 
-        // 타일 아래에 렌더링
-        lineRT.SetAsFirstSibling();
+        // 타일 위에 렌더링 (SetAsLastSibling으로 변경)
+        lineRT.SetAsLastSibling();
 
         return lineObj;
     }
@@ -71,13 +71,13 @@ public class SolutionVisualizer : MonoBehaviour
         int width = stage.gridSize.x;
         int height = stage.gridSize.y;
 
-        // solutionColorRepeats 배열을 순회
-        for (int i = 0; i < stage.solutionColorRepeats.Length; i++)
+        // solutionColorRepeats 배열을 순회 (colorPalette 순서와 동일)
+        for (int i = 0; i < stage.solutionColorRepeats.Length && i < stage.colorPalette.Length; i++)
         {
-            string colorId = (i + 1).ToString(); // 1-based 인덱스
+            string colorId = stage.colorPalette[i].id; // colorPalette의 실제 ID 사용
             int count = stage.solutionColorRepeats[i];
 
-            // 해당 색상의 타일 찾기
+            // 해당 색상 ID를 가진 모든 타일 찾기
             for (int x = 0; x < width; x++)
             {
                 for (int y = 0; y < height; y++)
@@ -89,7 +89,8 @@ public class SolutionVisualizer : MonoBehaviour
                         int gridIndex = y * width + x;
                         int gridValue = stage.gridData[gridIndex];
 
-                        if (gridValue.ToString() == colorId)
+                        // gridValue가 colorPalette의 ID와 일치하는지 확인
+                        if (gridValue > 0 && gridValue.ToString() == colorId)
                         {
                             tile.SetCollectionCount(count);
                         }

@@ -16,11 +16,19 @@ public class UIManager : MonoBehaviour
     [SerializeField] private GameObject losePanel;
     [SerializeField] private Button replayButton;  // ★ NEW: Replay 버튼
 
-    private Color32 targetColor;
+    [Header("Solution 버튼")]
+    [SerializeField] private Button solutionButton;
+    [SerializeField] private SolutionVisualizer solutionVisualizer;
+    [SerializeField] private GridManager gridManager;
 
-    public void Initialize(Color32 targetColorParam, int maxMoves, int stageId)
+    private Color32 targetColor;
+    private bool isSolutionShown = false;
+    private StageData currentStageData;
+
+    public void Initialize(Color32 targetColorParam, int maxMoves, int stageId, StageData stageData)
     {
         targetColor = targetColorParam;
+        currentStageData = stageData;
         targetColorDisplay.color = targetColor;
         UpdatePlayerColor(new Color32(255, 255, 255, 255)); // 흰색
         UpdateMovesCounter(maxMoves);
@@ -36,6 +44,15 @@ public class UIManager : MonoBehaviour
             replayButton.onClick.AddListener(OnReplayClicked);
             replayButton.gameObject.SetActive(false); // 초기에는 숨김
         }
+
+        // ★ NEW: Solution 버튼 초기화
+        if (solutionButton != null)
+        {
+            solutionButton.onClick.RemoveAllListeners();
+            solutionButton.onClick.AddListener(OnSolutionButtonClicked);
+        }
+
+        isSolutionShown = false;
     }
 
     public void UpdatePlayerColor(Color32 color)
@@ -138,5 +155,78 @@ public class UIManager : MonoBehaviour
         {
             Debug.LogWarning("GameManager를 찾을 수 없습니다!");
         }
+    }
+
+    // ★ NEW: Solution 버튼 클릭 핸들러
+    private void OnSolutionButtonClicked()
+    {
+        if (isSolutionShown)
+        {
+            HideSolutionVisualization();
+        }
+        else
+        {
+            ShowSolutionVisualization();
+        }
+    }
+
+    private void ShowSolutionVisualization()
+    {
+        if (currentStageData == null || solutionVisualizer == null || gridManager == null)
+        {
+            Debug.LogWarning("Solution 시각화에 필요한 컴포넌트가 없습니다!");
+            return;
+        }
+
+        // A* 경로 계산
+        AStarPathfinder pathfinder = new AStarPathfinder();
+        SolutionData solution = pathfinder.FindSolution(currentStageData);
+
+        if (solution != null)
+        {
+            // Solution 시각화
+            solutionVisualizer.ShowSolution(
+                solution,
+                currentStageData,
+                gridManager.GetTiles(),
+                gridManager.GetGridContainer()
+            );
+            isSolutionShown = true;
+            Debug.Log("풀이 표시됨!");
+        }
+        else
+        {
+            Debug.LogWarning("풀이를 계산할 수 없습니다!");
+        }
+    }
+
+    private void HideSolutionVisualization()
+    {
+        if (solutionVisualizer != null)
+        {
+            solutionVisualizer.HideSolution();
+        }
+
+        // 모든 타일의 수집 횟수 초기화
+        if (gridManager != null)
+        {
+            Tile[,] tiles = gridManager.GetTiles();
+            if (tiles != null)
+            {
+                for (int x = 0; x < tiles.GetLength(0); x++)
+                {
+                    for (int y = 0; y < tiles.GetLength(1); y++)
+                    {
+                        if (tiles[x, y] != null)
+                        {
+                            tiles[x, y].ClearCollectionCount();
+                        }
+                    }
+                }
+            }
+        }
+
+        isSolutionShown = false;
+        Debug.Log("풀이 숨김!");
     }
 }

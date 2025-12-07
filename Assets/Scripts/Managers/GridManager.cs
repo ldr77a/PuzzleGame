@@ -280,4 +280,9 @@ public class GridManager : MonoBehaviour
     {
         return currentStage;
     }
+
+    public Transform GetGridContainer()
+    {
+        return gridContainer;
+    }
 }
