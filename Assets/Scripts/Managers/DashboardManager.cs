@@ -164,6 +164,10 @@ public class DashboardManager : MonoBehaviour
             Button btn = rightItem.GetComponent<Button>();
             if (btn == null) btn = rightItem.AddComponent<Button>();
             btn.onClick.AddListener(() => OnStageSelected(stage));
+
+            // ★ Tooltip 추가
+            PreviewTooltip tooltip = rightItem.AddComponent<PreviewTooltip>();
+            tooltip.SetupTooltip(stage.stageId);
         }
     }
 
