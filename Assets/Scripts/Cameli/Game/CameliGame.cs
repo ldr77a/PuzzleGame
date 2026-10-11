@@ -18,6 +18,7 @@ namespace Cameli.Game
     {
         const int MaxBufferedMoves = 2;
         const float ClearPanelDelay = 0.3f;
+        const string OverfilledMessage = "방울이 너무 많아요. 되돌리기나 처음부터를 눌러 보세요.";
 
         readonly Queue<Direction> bufferedMoves = new Queue<Direction>();
         List<StageDefinition> stages;
@@ -140,6 +141,7 @@ namespace Cameli.Game
             board.Refresh(session.State);
             hud.Refresh(session);
             if (outcome == MoveOutcome.Cleared) StartCoroutine(ShowClearPanel());
+            else if (Rules.IsOverfilled(Stage, session.State)) hud.ShowMessage(OverfilledMessage);
         }
 
         IEnumerator ShowClearPanel()
@@ -161,7 +163,7 @@ namespace Cameli.Game
                 board.Refresh(session.State);
                 board.SnapToken(session.State.Position);
                 hud.Refresh(session);
-                hud.ShowMessage("");
+                hud.ShowMessage(Rules.IsOverfilled(Stage, session.State) ? OverfilledMessage : "");
             }
             else if (!session.IsCleared)
             {

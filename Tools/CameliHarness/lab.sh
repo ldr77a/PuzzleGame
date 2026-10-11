@@ -9,9 +9,8 @@ source "$(dirname "$0")/env.sh"
 
 build_core
 if [ ! -f "$OUT/LevelLab.dll" ] || [ "$HARNESS/LevelLab.cs" -nt "$OUT/LevelLab.dll" ] || [ "$OUT/Cameli.Core.dll" -nt "$OUT/LevelLab.dll" ]; then
-    csc -target:exe -optimize+ -nowarn:1701,1702 $(runtime_refs) -r:"$OUT/Cameli.Core.dll" \
-        -out:"$OUT/LevelLab.$$.dll" "$HARNESS/LevelLab.cs"
-    mv -f "$OUT/LevelLab.$$.dll" "$OUT/LevelLab.dll"   # atomic swap: running searches keep their copy
+    build_swapped LevelLab.dll -target:exe -optimize+ -nowarn:1701,1702 $(runtime_refs) -r:"$OUT/Cameli.Core.dll" \
+        "$HARNESS/LevelLab.cs"
     write_runtimeconfig "$OUT/LevelLab.runtimeconfig.json"
 fi
 

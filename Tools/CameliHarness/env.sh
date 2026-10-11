@@ -30,15 +30,29 @@ write_runtimeconfig() {
         "$(basename "$RT")" > "$1"
 }
 
+# Compiles into a private temp folder under the final file name (csc takes the assembly name from it, so a
+# temp file name would leak into the assembly identity), then moves the file into $OUT. The move is atomic,
+# so harness processes already running keep their copy.
+#   build_swapped <file name> <csc args...>
+build_swapped() {
+    local name="$1"; shift
+    local tmp="$OUT/tmp.$$"
+    mkdir -p "$tmp"
+    if ! csc "$@" -out:"$tmp/$name"; then
+        rm -rf "$tmp"
+        return 1
+    fi
+    mv -f "$tmp/$name" "$OUT/$name"
+    rm -rf "$tmp"
+}
+
 # Cameli.Core, compiled the way Unity does (netstandard 2.1, no engine references). Rebuilds only when a
-# source changed, and swaps the file in atomically so harness processes already running keep their copy.
+# source changed.
 build_core() {
     local dll="$OUT/Cameli.Core.dll"
     if [ -f "$dll" ] && [ -z "$(find "$PROJ/Assets/Scripts/Cameli/Core" -name '*.cs' -newer "$dll")" ]; then
         return 0
     fi
-    local tmp="$OUT/Cameli.Core.$$.dll"
-    csc -target:library -warn:4 -r:"$S/NetStandard/ref/2.1.0/netstandard.dll" \
-        -out:"$tmp" "$PROJ"/Assets/Scripts/Cameli/Core/*.cs
-    mv -f "$tmp" "$dll"
+    build_swapped Cameli.Core.dll -target:library -warn:4 -r:"$S/NetStandard/ref/2.1.0/netstandard.dll" \
+        "$PROJ"/Assets/Scripts/Cameli/Core/*.cs
 }

@@ -35,10 +35,10 @@ namespace Cameli.Core
         /// <summary>Ate a color cell.</summary>
         Ate,
 
-        /// <summary>Matched a gate; the gate took the mixed color.</summary>
+        /// <summary>Met the gate's recipe; the gate took the mixed color.</summary>
         PassedGate,
 
-        /// <summary>Ate a color cell and the mix now matches the target.</summary>
+        /// <summary>Ate a color cell and the mix now meets the target recipe (color and drop count).</summary>
         Cleared,
 
         BlockedByEdge,
@@ -84,7 +84,7 @@ namespace Cameli.Core
                 case CellKind.Color when !state.IsEaten(target):
                 {
                     DropCounts drops = state.Drops.Add(cell.Color);
-                    bool cleared = ColorMath.Matches(ColorMath.Mix(drops), stage.TargetColor);
+                    bool cleared = Meets(drops, stage.Target, stage.TargetColor);
                     next = new BoardState(target, state.Eaten | (1UL << target), drops, moves, cleared);
                     return cleared ? MoveOutcome.Cleared : MoveOutcome.Ate;
                 }
@@ -95,8 +95,22 @@ namespace Cameli.Core
             }
         }
 
-        public static bool CanPassGate(GateDefinition gate, DropCounts drops) =>
-            !drops.IsEmpty && ColorMath.Matches(ColorMath.Mix(drops), gate.Color);
+        public static bool CanPassGate(GateDefinition gate, DropCounts drops) => Meets(drops, gate.Recipe, gate.Color);
+
+        /// <summary>
+        /// A recipe is met when the mix has exactly its drop count and matches its color (±2). Ratio multiples
+        /// such as RRBB for RB mix to the same color but don't count, so the drop counter on screen and the
+        /// color together decide.
+        /// </summary>
+        public static bool Meets(DropCounts drops, DropCounts recipe, Rgb color) =>
+            drops.Total == recipe.Total && ColorMath.Matches(ColorMath.Mix(drops), color);
+
+        /// <summary>
+        /// True when the mix holds more drops than the target and every gate recipe. Drops only grow until a
+        /// gate takes them, so nothing can be cleared or opened any more without undoing or restarting.
+        /// </summary>
+        public static bool IsOverfilled(StageDefinition stage, in BoardState state) =>
+            state.Drops.Total > stage.MaxRecipeDrops;
 
         /// <summary>The cell kind as the player currently sees it: eaten color cells read as floor.</summary>
         public static CellKind VisibleKind(StageDefinition stage, in BoardState state, int index)

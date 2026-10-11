@@ -28,7 +28,7 @@ Phase 1 (the Unity prototype) is done on a separate git branch.
 - **`Tools/CameliHarness/` checks code without the editor** (even while it is open). It uses the C# compiler and .NET runtime bundled with the Unity version in `ProjectVersion.txt`:
   - `test-core.sh`: builds `Cameli.Core` (netstandard 2.1, like Unity) and runs the engine-free tests in `Assets/Tests/EditMode/Cameli/CoreTests.cs`.
   - `check-unity.sh`: compile-checks Assembly-CSharp, Assembly-CSharp-Editor, and the Cameli test assembly, using references and defines from the generated `.csproj` files. Run it after editing any Unity script.
-  - `lab.sh check`: validates every stage in `Assets/Resources/CameliStages`. It checks that each stage is solvable, that `optimalMoves` matches the solver, that the shortest clear uses exactly the target's drop count, and that any gate is actually walked through. `lab.sh search …` finds candidate boards and `lab.sh solve …` prints a shortest path; usage is in the script header.
+  - `lab.sh check`: validates every stage in `Assets/Resources/CameliStages`. It checks that each stage is solvable, that `optimalMoves` matches the solver, that every shortest clear ends beyond any gate (the gate is used as a door, not a reset), and that gates are passed with their exact recipe. `lab.sh search …` finds candidate boards and `lab.sh solve …` prints a shortest path; usage is in the script header.
   - Output goes to `Tools/CameliHarness/out/`, which is gitignored.
 - The Unity Editor usually has this project open. In that case, check `~/Library/Logs/Unity/Editor.log` for compile errors after editing scripts (Unity recompiles when the Editor regains focus).
 - A batch-mode compile check only works while the Editor is **closed**:
@@ -48,7 +48,10 @@ Phase 1 (the Unity prototype) is done on a separate git branch.
 
 - **`Core/` (assembly `Cameli.Core`, `noEngineReferences`)** holds the game rules in pure C#. Game and solver share this one implementation:
   - `Rules.Step` is the only move logic.
-  - `GameSession` adds undo (3 per attempt) and restart.
+    - Clearing, and passing a gate, need the color (±2) **and** the exact drop count (`Rules.Meets`). Ratio multiples don't count.
+    - `Rules.IsOverfilled` flags a mix with more drops than any recipe on the stage. The solver prunes those states.
+    - A passed gate leaves the player standing on the gate cell. Stepping back out the same side with an empty mix is allowed by design, so stages must need the gate as a door; `lab.sh check` verifies this.
+  - `GameSession` adds undo (3 per attempt) and restart, which also refills the undos.
   - `Solver` is a BFS for shortest clears, used by tooling and tests only, never at runtime.
   - Colors are `Rgb`/`DropCounts`. `ColorMath` reproduces the legacy `ColorMixer` math.
   - Keep this assembly free of UnityEngine so the harness can run it.

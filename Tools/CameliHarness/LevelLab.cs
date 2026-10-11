@@ -30,7 +30,7 @@ static class LevelLab
         public double Ambiguity;    // ΔE76 from target to the closest different recipe with the same drop count
         public string Nearest;
         public bool GateNeeded;
-        public bool Exact;          // every optimal clear uses exactly the target's drop count
+        public bool Exact;          // every optimal clear uses exactly the target's drop count (the rules guarantee it now; kept as a check)
         public int StartReturns;    // times the found shortest path comes back to the start cell
         public bool BeyondGate;     // every optimal clear ends outside the start region (gates used as doors, not resets)
     }
@@ -101,7 +101,7 @@ static class LevelLab
         exact = true;
         beyondGate = true;
         HashSet<int> startRegion = StartRegion(stage);
-        int maxDrops = Math.Max(12, stage.Target.Total * 2);
+        int maxDrops = stage.MaxRecipeDrops;
         var atOptimal = new HashSet<ulong>();
         var near = new HashSet<ulong>();
         BoardState start = BoardState.Initial(stage);

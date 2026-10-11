@@ -107,6 +107,13 @@ namespace Cameli.Tests
         }
 
         [Test]
+        public void MaxRecipeDropsCoversTargetAndGates()
+        {
+            Assert.AreEqual(2, TestStages.Basic().MaxRecipeDrops);
+            Assert.AreEqual(3, TestStages.Make("R", new[] { "YYB" }, "Y Y B", "g0 S R", "R R R").MaxRecipeDrops);
+        }
+
+        [Test]
         public void RejectsBadTargetRecipe()
         {
             Assert.Throws<StageFormatException>(() => TestStages.Make("RX", null, "R R R", "R S R", "R R R"));
@@ -155,6 +162,69 @@ namespace Cameli.Tests
             Assert.AreEqual(MoveOutcome.Cleared, session.Move(Direction.Right));
             Assert.IsTrue(session.IsCleared);
             Assert.AreEqual(MoveOutcome.AlreadyCleared, session.Move(Direction.Left));
+        }
+
+        /// <summary>
+        /// R R B
+        /// # S B      target: red 1 + blue 1
+        /// # # #
+        /// </summary>
+        static StageDefinition RatioStage() => TestStages.Make("RB", null, "R R B", "# S B", "# # #");
+
+        [Test]
+        public void ExactDropCountClears()
+        {
+            var session = new GameSession(RatioStage());
+            session.Move(Direction.Up);
+            Assert.AreEqual(MoveOutcome.Cleared, session.Move(Direction.Right));
+        }
+
+        [Test]
+        public void RatioMultipleOfTheTargetDoesNotClear()
+        {
+            var session = new GameSession(RatioStage());
+            session.Move(Direction.Up);
+            session.Move(Direction.Left);
+            session.Move(Direction.Right);
+            session.Move(Direction.Right);
+            Assert.AreEqual(MoveOutcome.Ate, session.Move(Direction.Down));
+            Assert.AreEqual("RRBB", session.State.Drops.ToString());
+            Assert.IsTrue(ColorMath.Matches(session.CurrentColor, session.Stage.TargetColor), "same color as the target");
+            Assert.IsFalse(session.IsCleared, "but four drops are not the target's two");
+        }
+
+        [Test]
+        public void OverfilledOnceDropsExceedEveryRecipe()
+        {
+            var session = new GameSession(RatioStage());
+            session.Move(Direction.Up);
+            session.Move(Direction.Left);
+            Assert.IsFalse(Rules.IsOverfilled(session.Stage, session.State), "RR: two drops can still be used");
+
+            session.Move(Direction.Right);
+            session.Move(Direction.Right);
+            Assert.IsTrue(Rules.IsOverfilled(session.Stage, session.State), "RRB: three drops for a two-drop target");
+
+            session.Undo();
+            Assert.IsFalse(Rules.IsOverfilled(session.Stage, session.State));
+        }
+
+        [Test]
+        public void GateRejectsRatioMultipleOfItsRecipe()
+        {
+            // Y R R
+            // g0 S Y     g0 = orange gate (red 1 + yellow 1)
+            // # # #
+            var session = new GameSession(TestStages.Make("B", new[] { "RY" }, "Y R R", "g0 S Y", "# # #"));
+            session.Move(Direction.Up);
+            session.Move(Direction.Right);
+            session.Move(Direction.Down);
+            session.Move(Direction.Left);
+            session.Move(Direction.Up);
+            session.Move(Direction.Left);
+            Assert.AreEqual("RRYY", session.State.Drops.ToString());
+            Assert.IsTrue(ColorMath.Matches(session.CurrentColor, session.Stage.Gates[0].Color), "same color as the gate");
+            Assert.AreEqual(MoveOutcome.BlockedByGate, session.Move(Direction.Down));
         }
 
         [Test]

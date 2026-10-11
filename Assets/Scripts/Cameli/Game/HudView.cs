@@ -73,6 +73,7 @@ namespace Cameli.Game
             BoardState state = session.State;
             currentSwatch.color = state.Drops.IsEmpty ? Color.white : (Color)Theme.ToColor(ColorMath.Mix(state.Drops));
             dropsLabel.text = $"{state.Drops.Total}/{session.Stage.Target.Total}";
+            dropsLabel.color = Rules.IsOverfilled(session.Stage, state) ? Theme.Accent : Theme.Ink;
             movesLabel.text = state.Moves.ToString();
             undoLabel.text = $"되돌리기 {session.UndosRemaining}";
             undoButton.interactable = session.CanUndo;

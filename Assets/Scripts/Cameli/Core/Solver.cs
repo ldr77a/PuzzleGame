@@ -24,12 +24,12 @@ namespace Cameli.Core
     {
         /// <summary>Returns a shortest clear, or null if the stage cannot be cleared.</summary>
         /// <param name="maxDrops">
-        /// States holding more drops than this are pruned. A clear may use a multiple of the target ratio,
-        /// so the default allows at least twice the target's drop count.
+        /// States holding more drops than this are pruned. The default, the stage's largest recipe, loses
+        /// nothing: an overfilled mix can neither clear nor pass a gate (see <see cref="Rules.IsOverfilled"/>).
         /// </param>
         public static Solution Solve(StageDefinition stage, int maxDrops = 0, int maxStates = 2_000_000)
         {
-            if (maxDrops <= 0) maxDrops = Math.Max(12, stage.Target.Total * 2);
+            if (maxDrops <= 0) maxDrops = stage.MaxRecipeDrops;
 
             BoardState start = BoardState.Initial(stage);
             var nodes = new List<Node> { new Node(start, -1, Direction.Up) };

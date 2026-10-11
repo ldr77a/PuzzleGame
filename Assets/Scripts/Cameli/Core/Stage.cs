@@ -68,6 +68,10 @@ namespace Cameli.Core
         public DropCounts Target { get; }
         public Rgb TargetColor { get; }
         public int OptimalMoves { get; }
+
+        /// <summary>The largest drop count among the target and the gate recipes; any more can never be used.</summary>
+        public int MaxRecipeDrops { get; }
+
         public int CellCount => cells.Length;
         public IReadOnlyList<GateDefinition> Gates => gates;
 
@@ -84,6 +88,8 @@ namespace Cameli.Core
             TargetColor = ColorMath.Mix(target);
             OptimalMoves = file.optimalMoves;
             this.gates = gates;
+            MaxRecipeDrops = target.Total;
+            foreach (GateDefinition gate in gates) MaxRecipeDrops = Math.Max(MaxRecipeDrops, gate.Recipe.Total);
         }
 
         public Cell CellAt(int index) => cells[index];
