@@ -57,6 +57,7 @@ namespace Cameli.EditorTools
             foreach (EditorBuildSettingsScene existing in EditorBuildSettings.scenes)
                 if (existing.path != ScenePath) scenes.Add(new EditorBuildSettingsScene(existing.path, false));
             EditorBuildSettings.scenes = scenes.ToArray();
+            AssetDatabase.SaveAssets();   // write EditorBuildSettings.asset now instead of on the next project save
             Debug.Log($"Created {ScenePath} and made it the only enabled build scene.");
         }
 
