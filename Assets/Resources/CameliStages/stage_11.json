@@ -1,0 +1,17 @@
+{
+  "id": 11,
+  "title": "초록 문",
+  "hint": "",
+  "rows": [
+    "G Y R R R",
+    "B # g0 # R",
+    "# R S B #",
+    "G Y G Y R",
+    "B Y G G R"
+  ],
+  "target": "RRY",
+  "gates": [
+    "YB"
+  ],
+  "optimalMoves": 9
+}

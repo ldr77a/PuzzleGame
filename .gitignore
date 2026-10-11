@@ -73,3 +73,11 @@ crashlytics-build.properties
 # Temporary auto-generated Android Assets
 /[Aa]ssets/[Ss]treamingAssets/aa.meta
 /[Aa]ssets/[Ss]treamingAssets/aa/*
+
+# Cameli harness build output
+/Tools/CameliHarness/out/
+
+# Local editor and OS files
+.DS_Store
+.vscode/
+*.slnx

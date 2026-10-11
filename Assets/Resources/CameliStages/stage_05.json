@@ -1,0 +1,12 @@
+{
+  "id": 5,
+  "title": "되돌리기",
+  "hint": "잘못 먹었다면 되돌리기! 한 판에 3번까지 쓸 수 있어요.",
+  "rows": [
+    "Y R Y",
+    "R S B",
+    "Y Y Y"
+  ],
+  "target": "RRB",
+  "optimalMoves": 5
+}

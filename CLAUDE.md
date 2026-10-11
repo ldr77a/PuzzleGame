@@ -16,10 +16,20 @@ The architecture described below is the *current, pre-rework* prototype. Where i
 - dashboard in the game scene → split out into a dev-only tool
 
 Phase 1 (the Unity prototype) is done on a separate git branch.
+- Progress logs are dated `docs/MMDD 작업 정리.md`. Read the latest one before resuming. `docs/1011 작업 정리.md` §2 holds the remaining Phase 1 task list.
+- `docs/1011 에이전트 지시문.md` holds a copy-paste prompt per task. Its §0 lists the shared rules for agents: verification, git, and docs.
 
 ## Building and verifying
 
-- There is no CLI build, lint, or test setup. `com.unity.test-framework` is installed, but there are no test assemblies and no `.asmdef` files. All runtime code compiles into `Assembly-CSharp`, and `Assets/Scripts/Editor/` compiles into `Assembly-CSharp-Editor`. `dotnet` is not installed, so the generated `.csproj` files can't be built directly.
+- There is no CLI build or lint setup, and a system `dotnet` is not installed. Assemblies:
+  - `Cameli.Core` (`Assets/Scripts/Cameli/Core/`) and `Cameli.Tests.EditMode` (`Assets/Tests/EditMode/Cameli/`) have their own `.asmdef` files.
+  - All other runtime code compiles into `Assembly-CSharp`, and `Editor/` folders compile into `Assembly-CSharp-Editor`.
+  - In the editor, run the tests from Window → General → Test Runner → EditMode.
+- **`Tools/CameliHarness/` checks code without the editor** (even while it is open). It uses the C# compiler and .NET runtime bundled with the Unity version in `ProjectVersion.txt`:
+  - `test-core.sh`: builds `Cameli.Core` (netstandard 2.1, like Unity) and runs the engine-free tests in `Assets/Tests/EditMode/Cameli/CoreTests.cs`.
+  - `check-unity.sh`: compile-checks Assembly-CSharp, Assembly-CSharp-Editor, and the Cameli test assembly, using references and defines from the generated `.csproj` files. Run it after editing any Unity script.
+  - `lab.sh check`: validates every stage in `Assets/Resources/CameliStages`. It checks that each stage is solvable, that `optimalMoves` matches the solver, that the shortest clear uses exactly the target's drop count, and that any gate is actually walked through. `lab.sh search …` finds candidate boards and `lab.sh solve …` prints a shortest path; usage is in the script header.
+  - Output goes to `Tools/CameliHarness/out/`, which is gitignored.
 - The Unity Editor usually has this project open. In that case, check `~/Library/Logs/Unity/Editor.log` for compile errors after editing scripts (Unity recompiles when the Editor regains focus).
 - A batch-mode compile check only works while the Editor is **closed**:
   `"/Applications/Unity/Hub/Editor/6000.3.26f1/Unity.app/Contents/MacOS/Unity" -batchmode -nographics -quit -projectPath . -logFile -`
@@ -27,11 +37,34 @@ Phase 1 (the Unity prototype) is done on a separate git branch.
 
 ## Unity-specific editing notes
 
+- Scene work always goes in a **new** scene. Don't modify or re-save the existing scenes (`Puzzle.unity`, `Old_Puzzle.unity`). Create new scenes from code through a `Cameli/` menu item, the way `CameliMenu` creates `Prototype.unity`.
 - Scenes and prefabs reference scripts by the GUID in the `.meta` file. If you move or rename a `.cs` file from the shell, move its `.meta` file with it. Otherwise the scene's component references break.
 - Manager wiring is done through `[SerializeField]` references in `Puzzle.unity`. If you rename a serialized field, the inspector link is silently dropped unless you add `[FormerlySerializedAs]`.
 - Gameplay input uses the legacy `Input.GetKeyDown` API. This works because Active Input Handling is set to "Both" (`activeInputHandler: 2`).
 
 ## Architecture
+
+### Cameli Garden rework (Phase 1, `Assets/Scripts/Cameli/`)
+
+- **`Core/` (assembly `Cameli.Core`, `noEngineReferences`)** holds the game rules in pure C#. Game and solver share this one implementation:
+  - `Rules.Step` is the only move logic.
+  - `GameSession` adds undo (3 per attempt) and restart.
+  - `Solver` is a BFS for shortest clears, used by tooling and tests only, never at runtime.
+  - Colors are `Rgb`/`DropCounts`. `ColorMath` reproduces the legacy `ColorMixer` math.
+  - Keep this assembly free of UnityEngine so the harness can run it.
+- **`Game/` (Assembly-CSharp, namespace `Cameli.Game`)** is the prototype client:
+  - `CameliGame` is the entry point on an empty GameObject. It builds the whole uGUI in code: no prefabs and no scene wiring.
+  - `BoardView` positions cells with normalized anchors. `BoardInput` handles swipe and tap.
+  - `HudView` and `ClearPanel` are the UI. `SpriteFactory` generates the flat shapes. `StageLibrary` loads the stages. `Progress` stores progress in PlayerPrefs.
+- **Stage files** live in `Assets/Resources/CameliStages/stage_NN.json`, matching `StageFile` in `Core/Stage.cs`:
+  - `rows`: space-separated tokens, top row first. Color letters are `R O Y G B N P`. `S` is the start (must be the center cell; on even sizes, the top-left of the central 2×2), `#` is a wall, `gN` is a gate.
+  - `target`, `gates`: recipe strings such as `"RRY"`.
+  - `optimalMoves`: from the solver.
+  - Ids must run 1..n.
+- **Editor menu `Cameli/`** (`Assets/Scripts/Editor/Cameli/CameliMenu.cs`):
+  - Apply the mobile player settings.
+  - Create `Assets/0. Scenes/Prototype.unity` and make it the only enabled build scene.
+  - Validate stages.
 
 ### Stage data format (`Data/StageData.cs`)
 

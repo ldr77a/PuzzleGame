@@ -1,0 +1,12 @@
+{
+  "id": 3,
+  "title": "방울 수",
+  "hint": "목표는 3방울(노랑 2 + 파랑 1). 방울 수를 확인하세요.",
+  "rows": [
+    "B Y Y",
+    "B S B",
+    "B B B"
+  ],
+  "target": "YYB",
+  "optimalMoves": 3
+}

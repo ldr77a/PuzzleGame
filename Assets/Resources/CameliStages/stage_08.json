@@ -1,0 +1,13 @@
+{
+  "id": 8,
+  "title": "네 방울",
+  "hint": "",
+  "rows": [
+    "R # R Y",
+    "Y S Y B",
+    "B Y R #",
+    "Y B Y Y"
+  ],
+  "target": "RYBB",
+  "optimalMoves": 6
+}

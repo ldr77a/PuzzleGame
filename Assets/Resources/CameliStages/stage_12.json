@@ -1,0 +1,17 @@
+{
+  "id": 12,
+  "title": "연두 문",
+  "hint": "",
+  "rows": [
+    "B Y # R R",
+    "R B g0 Y G",
+    "# # S G Y",
+    "G B B Y G",
+    "G G Y R R"
+  ],
+  "target": "RB",
+  "gates": [
+    "YYB"
+  ],
+  "optimalMoves": 9
+}

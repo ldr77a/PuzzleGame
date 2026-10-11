@@ -1,0 +1,12 @@
+{
+  "id": 4,
+  "title": "빈 바닥",
+  "hint": "먹은 칸과 가운데 칸은 지나가도 아무것도 섞이지 않아요.",
+  "rows": [
+    "Y R Y",
+    "B S B",
+    "Y R Y"
+  ],
+  "target": "RB",
+  "optimalMoves": 3
+}

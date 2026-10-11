@@ -1,0 +1,17 @@
+{
+  "id": 10,
+  "title": "동백꽃 문",
+  "hint": "문 안의 점을 섞은 색이면 열려요. 지나가면 문이 색을 가져가요.",
+  "rows": [
+    "B R Y B Y",
+    "R # g0 # R",
+    "# B S R #",
+    "B B R R Y",
+    "B R Y R Y"
+  ],
+  "target": "YB",
+  "gates": [
+    "RY"
+  ],
+  "optimalMoves": 7
+}

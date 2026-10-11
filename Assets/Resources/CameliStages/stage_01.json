@@ -1,0 +1,12 @@
+{
+  "id": 1,
+  "title": "첫 걸음",
+  "hint": "빨간 칸을 밟아 보세요. 밟은 칸의 색을 먹어요.",
+  "rows": [
+    "Y Y Y",
+    "Y S R",
+    "Y Y Y"
+  ],
+  "target": "R",
+  "optimalMoves": 1
+}

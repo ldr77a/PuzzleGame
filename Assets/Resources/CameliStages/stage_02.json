@@ -1,0 +1,12 @@
+{
+  "id": 2,
+  "title": "섞기",
+  "hint": "빨강 + 노랑 = 주황! 목표색이 되면 바로 클리어예요.",
+  "rows": [
+    "Y Y Y",
+    "R S Y",
+    "R R R"
+  ],
+  "target": "RY",
+  "optimalMoves": 2
+}
