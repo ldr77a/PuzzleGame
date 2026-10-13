@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace Cameli.Game
@@ -31,6 +32,15 @@ namespace Cameli.Game
         {
             if (stageIndex + 1 > Unlocked) PlayerPrefs.SetInt(UnlockedKey, stageIndex + 1);
             if (stars > BestStars(stageId)) PlayerPrefs.SetInt(StarsKeyPrefix + stageId, stars);
+            PlayerPrefs.Save();
+        }
+
+        /// <summary>Forgets unlocks, stars, and the last stage played, for handing the device to the next playtester.</summary>
+        public static void ResetAll(IEnumerable<int> stageIds)
+        {
+            PlayerPrefs.DeleteKey(UnlockedKey);
+            PlayerPrefs.DeleteKey(LastPlayedKey);
+            foreach (int id in stageIds) PlayerPrefs.DeleteKey(StarsKeyPrefix + id);
             PlayerPrefs.Save();
         }
     }

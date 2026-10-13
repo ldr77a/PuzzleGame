@@ -59,6 +59,7 @@ Phase 1 (the Unity prototype) is done on a separate git branch.
   - `CameliGame` is the entry point on an empty GameObject. It builds the whole uGUI in code: no prefabs and no scene wiring.
   - `BoardView` positions cells with normalized anchors. `BoardInput` handles swipe and tap.
   - `HudView` and `ClearPanel` are the UI. `SpriteFactory` generates the flat shapes. `StageLibrary` loads the stages. `Progress` stores progress in PlayerPrefs.
+  - Playtest tools (Phase 1 only): holding the stage title for 2 s (`LongPress`) opens `PlaytestPanel`, which offers next tester / log summary. `PlaytestLog` appends one row per stage attempt to `persistentDataPath/playtest.csv`. The moderator's guide is `docs/플레이테스트 기록지.md`.
 - **Stage files** live in `Assets/Resources/CameliStages/stage_NN.json`, matching `StageFile` in `Core/Stage.cs`:
   - `rows`: space-separated tokens, top row first. Color letters are `R O Y G B N P`. `S` is the start (must be the center cell; on even sizes, the top-left of the central 2×2), `#` is a wall, `gN` is a gate.
   - `target`, `gates`: recipe strings such as `"RRY"`.
@@ -68,6 +69,7 @@ Phase 1 (the Unity prototype) is done on a separate git branch.
   - Apply the mobile player settings.
   - Create `Assets/0. Scenes/Prototype.unity` and make it the only enabled build scene.
   - Validate stages.
+  - One-click builds into `~/Builds/CameliGarden`. "Android 빌드 후 폰에서 실행" builds the APK and runs it on a USB-connected phone (`AutoRunPlayer`). "iOS Xcode 프로젝트 만들기" generates the Xcode project and opens it.
 
 ### Stage data format (`Data/StageData.cs`)
 

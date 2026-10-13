@@ -6,6 +6,7 @@ using Cameli.Core;
 using Cameli.Game;
 using UnityEditor;
 using UnityEditor.Build;
+using UnityEditor.Build.Reporting;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -21,6 +22,10 @@ namespace Cameli.EditorTools
 
         /// <summary>Temporary; the final bundle ID is decided in Phase 4.</summary>
         const string ApplicationId = "com.cameligarden.prototype";
+
+        /// <summary>Builds go outside the project: ~/Builds/CameliGarden.</summary>
+        static string BuildRoot =>
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Personal), "Builds", "CameliGarden");
 
         [MenuItem("Cameli/모바일 프로젝트 설정 적용")]
         static void ApplyMobileSettings()
@@ -59,6 +64,67 @@ namespace Cameli.EditorTools
             EditorBuildSettings.scenes = scenes.ToArray();
             AssetDatabase.SaveAssets();   // write EditorBuildSettings.asset now instead of on the next project save
             Debug.Log($"Created {ScenePath} and made it the only enabled build scene.");
+        }
+
+        [MenuItem("Cameli/Android 빌드 후 폰에서 실행")]
+        static void BuildAndroid()
+        {
+            // AutoRunPlayer installs and starts the APK on a phone connected with USB debugging. Without a phone
+            // the APK is still built and can be shared with playtesters.
+            string apk = Path.Combine(BuildRoot, "CameliGarden.apk");
+            DateTime started = DateTime.Now;
+            bool built = Build(BuildTarget.Android, BuildTargetGroup.Android, "Android", apk, BuildOptions.AutoRunPlayer,
+                "폰에 설치·실행하는 단계에서 실패했다면 APK는 만들어졌을 수 있어요. USB 연결과 USB 디버깅을 확인해 주세요.");
+            // Without a phone the run step can fail the whole build even though the APK was written.
+            if (built || (File.Exists(apk) && File.GetLastWriteTime(apk) >= started)) EditorUtility.RevealInFinder(apk);
+        }
+
+        [MenuItem("Cameli/iOS Xcode 프로젝트 만들기")]
+        static void BuildIos()
+        {
+            string folder = Path.Combine(BuildRoot, "iOS");
+            if (!Build(BuildTarget.iOS, BuildTargetGroup.iOS, "iOS", folder, BuildOptions.None)) return;
+            string project = Path.Combine(folder, "Unity-iPhone.xcodeproj");
+            if (Directory.Exists(project)) EditorUtility.OpenWithDefaultApp(project);
+            else EditorUtility.RevealInFinder(folder);
+        }
+
+        /// <summary>Builds the enabled build scenes. Switches the active platform if needed, which takes a while.</summary>
+        static bool Build(BuildTarget target, BuildTargetGroup group, string label, string path, BuildOptions options,
+            string failureHint = "")
+        {
+            if (!BuildPipeline.IsBuildTargetSupported(group, target))
+            {
+                EditorUtility.DisplayDialog("Cameli",
+                    $"{label} 빌드 모듈이 설치되어 있지 않아요.\nUnity Hub → 설치 → {Application.unityVersion} 톱니바퀴 → 모듈 추가에서 {label} Build Support를 설치해 주세요.",
+                    "확인");
+                return false;
+            }
+            string[] scenes = EditorBuildSettingsScene.GetActiveSceneList(EditorBuildSettings.scenes);
+            if (scenes.Length == 0)
+            {
+                EditorUtility.DisplayDialog("Cameli", "빌드할 씬이 없어요. 먼저 \"Cameli → 프로토타입 씬 만들기\"를 실행해 주세요.", "확인");
+                return false;
+            }
+
+            Directory.CreateDirectory(BuildRoot);
+            BuildReport report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
+            {
+                scenes = scenes,
+                locationPathName = path,
+                target = target,
+                targetGroup = group,
+                options = options,
+            });
+            if (report.summary.result == BuildResult.Succeeded)
+            {
+                Debug.Log($"{label} build succeeded: {path}");
+                return true;
+            }
+            EditorUtility.DisplayDialog("Cameli",
+                $"{label} 빌드에 실패했어요 (오류 {report.summary.totalErrors}개). Console 창의 빨간 오류를 확인해 주세요.\n{failureHint}".TrimEnd(),
+                "확인");
+            return false;
         }
 
         [MenuItem("Cameli/스테이지 검증")]

@@ -12,7 +12,8 @@ namespace Cameli.Game
     /// <summary>
     /// Phase 1 prototype entry point. Put it on an empty GameObject: it builds the UI, loads the stages, and
     /// turns swipes, taps, and keys into moves on a <see cref="GameSession"/>.
-    /// Editor keys: arrows/WASD move, Z or Backspace undo, R restart.
+    /// Editor keys: arrows/WASD move, Z or Backspace undo, R restart. Holding the stage title for two seconds opens
+    /// the playtest tools (next tester, playtest log summary).
     /// </summary>
     public sealed class CameliGame : MonoBehaviour
     {
@@ -28,6 +29,8 @@ namespace Cameli.Game
         BoardInput boardInput;
         HudView hud;
         ClearPanel clearPanel;
+        PlaytestPanel playtestPanel;
+        readonly PlaytestLog playtestLog = new PlaytestLog();
         bool showingAllClear;
 
         StageDefinition Stage => session.Stage;
@@ -36,6 +39,7 @@ namespace Cameli.Game
         void Awake()
         {
             Application.targetFrameRate = 60;
+            Screen.sleepTimeout = SleepTimeout.NeverSleep; // playtesters stop to think; keep the screen on meanwhile
             EnsureSceneBasics();
             BuildUi();
 
@@ -50,7 +54,7 @@ namespace Cameli.Game
 
         void Update()
         {
-            if (session == null) return;
+            if (session == null || playtestPanel.IsVisible) return;
 
             Keyboard keyboard = Keyboard.current;
             if (keyboard != null)
@@ -72,9 +76,11 @@ namespace Cameli.Game
             // panel it schedules is cancelled by StopAllCoroutines right after.
             board.CompleteAnimation();
             StopAllCoroutines();
+            if (session != null) playtestLog.End(PlaytestLog.ResultLeft, session.State.Moves, 0);
             stageIndex = index;
             Progress.LastPlayed = index;
             session = new GameSession(stages[index]);
+            playtestLog.Begin(Stage.Id);
             bufferedMoves.Clear();
             clearPanel.Hide();
             showingAllClear = false;
@@ -148,6 +154,7 @@ namespace Cameli.Game
         {
             bufferedMoves.Clear();
             Progress.RecordClear(stageIndex, Stage.Id, session.Stars);
+            playtestLog.End(PlaytestLog.ResultClear, session.State.Moves, session.Stars);
             hud.SetStage(Stage, stageIndex, stages.Count, stageIndex > 0, stageIndex < LastOpenIndex);
             yield return new WaitForSecondsRealtime(ClearPanelDelay);
             clearPanel.ShowStageClear(session.Stars, session.State.Moves, Stage.OptimalMoves, stageIndex < stages.Count - 1);
@@ -160,6 +167,7 @@ namespace Cameli.Game
             bufferedMoves.Clear();
             if (session.Undo())
             {
+                playtestLog.CountUndo();
                 board.Refresh(session.State);
                 board.SnapToken(session.State.Position);
                 hud.Refresh(session);
@@ -177,6 +185,9 @@ namespace Cameli.Game
             board.CompleteAnimation();
             StopAllCoroutines();
             bufferedMoves.Clear();
+            // Replaying a cleared stage is a new attempt; restarting an unfinished one is part of it.
+            if (playtestLog.IsOpen) playtestLog.CountRestart();
+            else playtestLog.Begin(Stage.Id);
             session.Restart();
             clearPanel.Hide();
             showingAllClear = false;
@@ -213,6 +224,45 @@ namespace Cameli.Game
             }
         }
 
+        void OpenPlaytestPanel()
+        {
+            if (session == null) return;
+            bufferedMoves.Clear();
+            playtestPanel.Show(PlaytestLog.Tester);
+        }
+
+        /// <summary>Hands the device to the next playtester: logs the open attempt, then clears all progress.</summary>
+        void NextTester()
+        {
+            playtestLog.End(PlaytestLog.ResultReset, session.State.Moves, 0);
+            Progress.ResetAll(stages.ConvertAll(stage => stage.Id));
+            PlaytestLog.NextTester();
+            StartStage(0);
+        }
+
+        /// <summary>
+        /// Phones can kill a backgrounded app without calling OnApplicationQuit, so the open attempt is written on
+        /// pause and a new one continues the same stage on return.
+        /// </summary>
+        void OnApplicationPause(bool paused)
+        {
+            if (session == null) return;
+            if (paused)
+            {
+                board.CompleteAnimation(); // a clearing move still sliding must log its clear before the pause row
+                playtestLog.End(PlaytestLog.ResultPause, session.State.Moves, 0);
+            }
+            else if (!session.IsCleared && !playtestLog.IsOpen)
+            {
+                playtestLog.Begin(Stage.Id, session.State.Moves);
+            }
+        }
+
+        void OnApplicationQuit()
+        {
+            if (session != null) playtestLog.End(PlaytestLog.ResultQuit, session.State.Moves, 0);
+        }
+
         void OnBoardTapped(int column, int row)
         {
             int x = session.State.Position % Stage.Width;
@@ -244,7 +294,7 @@ namespace Cameli.Game
             RectTransform safeArea = Ui.Stretch(Ui.NewRect("Safe Area", canvasObject.transform));
             safeArea.gameObject.AddComponent<SafeAreaFitter>();
 
-            hud = new HudView(safeArea, Restart, Undo, () => ChangeStage(-1), () => ChangeStage(1));
+            hud = new HudView(safeArea, Restart, Undo, () => ChangeStage(-1), () => ChangeStage(1), OpenPlaytestPanel);
 
             RectTransform boardArea = Ui.Stretch(Ui.NewRect("Board Area", safeArea), 40f, HudView.BottomReserved, 40f, HudView.TopReserved);
             Image boardImage = Ui.NewImage("Board", boardArea, SpriteFactory.RoundedRect, Theme.Board);
@@ -258,6 +308,7 @@ namespace Cameli.Game
             boardInput.Tapped += OnBoardTapped;
 
             clearPanel = new ClearPanel(safeArea, Restart, OnClearPanelNext);
+            playtestPanel = new PlaytestPanel(safeArea, NextTester, () => PlaytestLog.Summary(stages?.Count ?? 0));
         }
 
         /// <summary>Lets the prototype run from any scene: adds an EventSystem and a camera if missing.</summary>

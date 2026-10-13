@@ -29,7 +29,7 @@ namespace Cameli.Game
         readonly Button nextButton;
         readonly Button undoButton;
 
-        public HudView(RectTransform root, Action restart, Action undo, Action previous, Action next)
+        public HudView(RectTransform root, Action restart, Action undo, Action previous, Action next, Action openPlaytest)
         {
             // Top bar: [<] stage title [>] ........ [처음부터]
             RectTransform bar = Ui.TopStrip(Ui.NewRect("Top Bar", root), 24f, 110f, Side);
@@ -37,6 +37,8 @@ namespace Cameli.Game
             Ui.Box(previousButton.GetComponent<RectTransform>(), new Vector2(0, 0.5f), Vector2.zero, new Vector2(100, 100));
             stageLabel = Ui.NewLabel("Stage", bar, "", 44, Theme.Ink, TextAnchor.MiddleLeft, FontStyle.Bold);
             Ui.Stretch(stageLabel.rectTransform, 124f, 0, 376f, 0);
+            stageLabel.raycastTarget = true; // hidden playtest tools: hold the title for two seconds
+            stageLabel.gameObject.AddComponent<LongPress>().Held += openPlaytest;
             nextButton = Ui.NewButton("Next", bar, ">", 52, Theme.Button, Theme.Ink, next, out _);
             Ui.Box(nextButton.GetComponent<RectTransform>(), new Vector2(1, 0.5f), new Vector2(-256, 0), new Vector2(100, 100));
             Button restartButton = Ui.NewButton("Restart", bar, "처음부터", 40, Theme.Button, Theme.Ink, restart, out _);
