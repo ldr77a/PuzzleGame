@@ -763,4 +763,92 @@ namespace Cameli.Tests
             Assert.AreEqual(0, session.State.Moves);
         }
     }
+
+    public class StageAuditTests
+    {
+        /// <summary>
+        /// Shipped stage 10 (5×5, orange-purple gate used as a door), 7 moves at best.
+        /// P P P B O
+        /// P # g0 # P
+        /// # B S B #
+        /// P O O B O
+        /// B P P B O      target: blue 1 + purple 1, g0 = orange 1 + purple 1
+        /// </summary>
+        static StageFile DoorStage(int optimalMoves = 7) => new StageFile
+        {
+            id = 10,
+            rows = new[] { "P P P B O", "P # g0 # P", "# B S B #", "P O O B O", "B P P B O" },
+            target = "BP",
+            gates = new[] { "OP" },
+            optimalMoves = optimalMoves,
+        };
+
+        [Test]
+        public void GoodStagePasses()
+        {
+            StageReport report = StageAudit.Audit(DoorStage());
+            Assert.AreEqual(StageProblems.None, report.Problems);
+            Assert.AreEqual(7, report.Optimal);
+            Assert.AreEqual(GateUse.Door, report.GateUse);
+            Assert.IsTrue(report.GatesExact);
+            Assert.AreEqual("OBP", report.Colors);
+            Assert.AreEqual("BB", report.TargetNearest);
+            Assert.AreEqual(28.7, report.TargetDeltaE, 0.05);
+            Assert.AreEqual("OP~OO", report.GateNearest);
+        }
+
+        [Test]
+        public void WrongOptimalMovesIsReported()
+        {
+            StageReport report = StageAudit.Audit(DoorStage(optimalMoves: 8));
+            Assert.AreEqual(StageProblems.OptimalMismatch, report.Problems);
+            Assert.AreEqual(8, report.StoredOptimal);
+            Assert.AreEqual(7, report.Optimal);
+        }
+
+        [Test]
+        public void AmbiguousTargetIsReported()
+        {
+            // Navy 2 + blue 1 mixes about ΔE 6 from navy 3, too close to tell apart.
+            StageReport report = StageAudit.Audit(new StageFile
+            {
+                id = 1, rows = new[] { "N B N", "B S B", "N B N" }, target = "NNB", optimalMoves = 4,
+            });
+            Assert.AreEqual(StageProblems.TargetAmbiguous, report.Problems);
+            Assert.AreEqual("NNN", report.TargetNearest);
+            Assert.Less(report.TargetDeltaE, StageAudit.AmbiguityThreshold);
+        }
+
+        [Test]
+        public void GateNotNeededAsDoorIsReported()
+        {
+            // TestStages.WithGate: blue then yellow clears without ever touching the orange gate.
+            StageReport report = StageAudit.Audit(new StageFile
+            {
+                id = 1, rows = new[] { "Y B R", "g0 S R", "# Y #" }, target = "YB", gates = new[] { "RY" }, optimalMoves = 2,
+            });
+            Assert.AreEqual(GateUse.Skippable, report.GateUse);
+            Assert.AreEqual(StageProblems.GateSkippable, report.Problems);
+        }
+
+        [Test]
+        public void UnsolvableStageIsReported()
+        {
+            StageReport report = StageAudit.Audit(new StageFile
+            {
+                id = 1, rows = new[] { "Y Y Y", "Y S Y", "Y Y Y" }, target = "B", optimalMoves = 1,
+            });
+            Assert.IsFalse(report.Solvable);
+            Assert.AreEqual(-1, report.Optimal);
+            Assert.AreEqual(StageProblems.Unsolvable, report.Problems);
+        }
+
+        [Test]
+        public void WithoutGatesWallsOffGateCells()
+        {
+            StageFile file = StageAudit.WithoutGates(DoorStage());
+            Assert.AreEqual("P P P B O", file.rows[0]);
+            Assert.AreEqual("P # # # P", file.rows[1]);
+        }
+    }
 }
