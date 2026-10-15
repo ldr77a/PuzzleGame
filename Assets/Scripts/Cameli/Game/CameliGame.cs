@@ -308,7 +308,7 @@ namespace Cameli.Game
             boardInput.Tapped += OnBoardTapped;
 
             clearPanel = new ClearPanel(safeArea, Restart, OnClearPanelNext);
-            playtestPanel = new PlaytestPanel(safeArea, NextTester, () => PlaytestLog.Summary(stages?.Count ?? 0));
+            playtestPanel = new PlaytestPanel(safeArea, NextTester, () => PlaytestLog.Summary(stages?.Count ?? 0), "1번 스테이지부터");
         }
 
         /// <summary>Lets the prototype run from any scene: adds an EventSystem and a camera if missing.</summary>

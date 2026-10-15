@@ -52,7 +52,7 @@ Phase 1 (the Unity prototype) is done on a separate git branch.
     - `Rules.IsOverfilled` flags a mix with more drops than any recipe on the stage. The solver prunes those states.
     - A passed gate leaves the player standing on the gate cell. Stepping back out the same side with an empty mix is allowed by design, so stages must need the gate as a door; `lab.sh check` verifies this.
   - `GameSession` adds undo (3 per attempt; `GrantUndos` adds more, the ad reward) and restart, which also refills the undos. Using an undo or a "next step" hint caps the attempt at ★★ (`UsedUndo`, `UsedStepHint`, `Scoring.Stars(moves, optimal, assisted)`); restart clears both.
-  - `Solver` is a BFS for shortest clears, from the initial board or any `BoardState`. Tooling and tests run it unbounded; at runtime only `Hints.Next(session)` runs it, capped at `Hints.DefaultMaxStates` states.
+  - `Solver` is a BFS for shortest clears, from the initial board or any `BoardState`. Tooling and tests run it capped at `Solver.DefaultMaxStates` (2,000,000) states; at runtime only `Hints.Next(session)` runs it, capped at `Hints.DefaultMaxStates` states.
   - Colors are `Rgb`/`DropCounts`. `ColorMath` reproduces the legacy `ColorMixer` math.
   - Keep this assembly free of UnityEngine so the harness can run it.
 - **`Game/` (Assembly-CSharp, namespace `Cameli.Game`)** is the prototype client:

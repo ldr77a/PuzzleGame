@@ -1,5 +1,6 @@
 using System;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 namespace Cameli.Game
 {
@@ -40,6 +41,8 @@ namespace Cameli.Game
 
         static AudioClip[] clips;
         static AudioSource[] sources;
+        static AudioListener listener;
+        static bool watchingScenes;
         static int nextVoice;
 
         public static void Play(SfxKind kind)
@@ -56,14 +59,22 @@ namespace Cameli.Game
         }
 
         /// <summary>
-        /// A hidden object that survives scene loads, with a few voices so sounds can overlap. It brings its own
-        /// AudioListener when the scene has none (the code-built scenes add none to their camera).
+        /// A hidden object that survives scene loads, with a few voices so sounds can overlap. It carries an
+        /// AudioListener that is on only while no loaded scene brings its own (the code-built scenes add none to
+        /// their camera), checked again on every scene load and unload, so there is always exactly one.
         /// </summary>
         static void CreateHost()
         {
             var host = new GameObject("Cameli Sfx") { hideFlags = HideFlags.HideInHierarchy };
             UnityEngine.Object.DontDestroyOnLoad(host);
-            if (UnityEngine.Object.FindAnyObjectByType<AudioListener>() == null) host.AddComponent<AudioListener>();
+            listener = host.AddComponent<AudioListener>();
+            UpdateListener();
+            if (!watchingScenes)
+            {
+                watchingScenes = true;
+                SceneManager.sceneLoaded += (scene, mode) => UpdateListener();
+                SceneManager.sceneUnloaded += scene => UpdateListener();
+            }
 
             sources = new AudioSource[Voices];
             for (int i = 0; i < Voices; i++)
@@ -73,6 +84,16 @@ namespace Cameli.Game
                 sources[i].volume = Volume;
             }
             if (clips == null) clips = CreateClips();
+        }
+
+        /// <summary>Turns the host's listener on unless another active listener exists.</summary>
+        static void UpdateListener()
+        {
+            if (listener == null) return;
+            bool another = false;
+            foreach (AudioListener other in UnityEngine.Object.FindObjectsByType<AudioListener>(FindObjectsSortMode.None))
+                if (other != listener && other.isActiveAndEnabled) another = true;
+            listener.enabled = !another;
         }
 
         static AudioClip[] CreateClips()

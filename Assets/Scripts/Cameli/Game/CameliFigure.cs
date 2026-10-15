@@ -14,6 +14,12 @@ namespace Cameli.Game
         /// <summary>Outline width as a fraction of the figure's size.</summary>
         const float Outline = 0.03f;
 
+        /// <summary>
+        /// The crest's rect: a 0.36 square centered at (0.44, 0.64), grown by <see cref="SpriteFactory.CrestPadding"/>
+        /// because the sprite leaves room around the shape for its outline.
+        /// </summary>
+        const float CrestX = 0.44f, CrestY = 0.64f, CrestHalf = 0.18f * SpriteFactory.CrestPadding;
+
         readonly RectTransform figure;
         readonly Image body;
         readonly Image crest;
@@ -32,10 +38,10 @@ namespace Cameli.Game
 
             // Outlines first, then fills, so the ink traces the outside of the whole silhouette. Facing right.
             Part("Tail Outline", SpriteFactory.TailOutline, Theme.Ink, 0f, 0.12f, 0.36f, 0.48f);
-            Part("Crest Outline", SpriteFactory.CrestOutline, Theme.Ink, 0.26f, 0.46f, 0.62f, 0.82f);
+            Part("Crest Outline", SpriteFactory.CrestOutline, Theme.Ink, CrestX - CrestHalf, CrestY - CrestHalf, CrestX + CrestHalf, CrestY + CrestHalf);
             Part("Body Outline", SpriteFactory.Circle, Theme.Ink, 0.19f - Outline, 0.17f - Outline, 0.85f + Outline, 0.67f + Outline);
             tail = Part("Tail", SpriteFactory.Tail, Color.white, 0f, 0.12f, 0.36f, 0.48f);
-            crest = Part("Crest", SpriteFactory.Crest, Color.white, 0.26f, 0.46f, 0.62f, 0.82f);
+            crest = Part("Crest", SpriteFactory.Crest, Color.white, CrestX - CrestHalf, CrestY - CrestHalf, CrestX + CrestHalf, CrestY + CrestHalf);
             body = Part("Body", SpriteFactory.Circle, Color.white, 0.19f, 0.17f, 0.85f, 0.67f);
             Part("Eye Rim", SpriteFactory.Circle, Theme.Ink, 0.61f, 0.41f, 0.79f, 0.59f);
             Part("Eye", SpriteFactory.Circle, Color.white, 0.63f, 0.43f, 0.77f, 0.57f);

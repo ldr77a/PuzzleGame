@@ -155,20 +155,38 @@ namespace Cameli.Core
                 throw new StageFormatException($"{label}: start must be at column {center % width}, row {center / width}.");
 
             DropCounts target = ParseRecipe(file.target, label, "target");
-            int focus = ParseFocus(file.focus, width, height, label);
+            int focus = ParseFocus(file.focus, width, height, cells, label);
             Direction? swipe = ParseSwipe(file.swipe, label);
+            if (swipe.HasValue) CheckSwipe(swipe.Value, start, width, height, cells, label);
             return new StageDefinition(file, width, height, cells, start, target, gates, focus, swipe);
         }
 
-        /// <summary>Missing or empty = no focus (JsonUtility reads a missing array as empty).</summary>
-        static int ParseFocus(int[] focus, int width, int height, string label)
+        /// <summary>
+        /// Missing or empty = no focus (JsonUtility reads a missing array as empty). The focus must be a cell the
+        /// player can step to: not a wall, and not the start cell they already stand on.
+        /// </summary>
+        static int ParseFocus(int[] focus, int width, int height, Cell[] cells, string label)
         {
             if (focus == null || focus.Length == 0) return -1;
             if (focus.Length != 2) throw new StageFormatException($"{label}: focus must be [x, y], got {focus.Length} number(s).");
             int x = focus[0], y = focus[1];
             if (x < 0 || x >= width || y < 0 || y >= height)
                 throw new StageFormatException($"{label}: focus ({x}, {y}) is outside the {width}x{height} board.");
+            CellKind kind = cells[y * width + x].Kind;
+            if (kind == CellKind.Wall || kind == CellKind.Start)
+                throw new StageFormatException($"{label}: focus ({x}, {y}) is {(kind == CellKind.Wall ? "a wall" : "the start cell")}, not a cell to step to.");
             return y * width + x;
+        }
+
+        /// <summary>The tutorial swipe must show a real first step: from the start onto the board, not into a wall.</summary>
+        static void CheckSwipe(Direction swipe, int start, int width, int height, Cell[] cells, string label)
+        {
+            int x = start % width + swipe.Dx();
+            int y = start / width + swipe.Dy();
+            if (x < 0 || x >= width || y < 0 || y >= height)
+                throw new StageFormatException($"{label}: swipe {swipe} leads off the board from the start.");
+            if (cells[y * width + x].Kind == CellKind.Wall)
+                throw new StageFormatException($"{label}: swipe {swipe} leads into a wall from the start.");
         }
 
         static Direction? ParseSwipe(string swipe, string label)

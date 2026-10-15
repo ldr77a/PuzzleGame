@@ -50,8 +50,14 @@ namespace Cameli.Game
 
         // Cameli parts (see CameliFigure). The outline versions are the same shape grown by the outline width.
 
-        public static Sprite Crest => crest != null ? crest : crest = MakeShape("Crest", 128, CrestShape);
-        public static Sprite CrestOutline => crestOutline != null ? crestOutline : crestOutline = MakeShape("Crest Outline", 128, p => CrestShape(p) - CameliOutline);
+        /// <summary>
+        /// The crest is drawn this much smaller inside its square so its outline (out to |x| ≈ 1.07 at full size)
+        /// fits; <see cref="CameliFigure"/> grows the crest's rect by the same factor, so it shows at the same size.
+        /// </summary>
+        public const float CrestPadding = 1.12f;
+
+        public static Sprite Crest => crest != null ? crest : crest = MakeShape("Crest", 128, PaddedCrestShape);
+        public static Sprite CrestOutline => crestOutline != null ? crestOutline : crestOutline = MakeShape("Crest Outline", 128, p => PaddedCrestShape(p) - CameliOutline / CrestPadding);
         public static Sprite Tail => tail != null ? tail : tail = MakeShape("Tail", 128, TailShape);
         public static Sprite TailOutline => tailOutline != null ? tailOutline : tailOutline = MakeShape("Tail Outline", 128, p => TailShape(p) - CameliOutline);
 
@@ -151,6 +157,9 @@ namespace Cameli.Game
             d = Mathf.Min(d, Tapered(p, root, new Vector2(0f, -0.4f), 0.16f, 0.03f));
             return Mathf.Min(d, Segment(p, root, new Vector2(0f, -0.95f), 0.05f));
         }
+
+        /// <summary><see cref="CrestShape"/> shrunk by <see cref="CrestPadding"/>; the distance stays in sprite units.</summary>
+        static float PaddedCrestShape(Vector2 p) => CrestShape(p * CrestPadding) / CrestPadding;
 
         /// <summary>Three bumps along the top; the base is hidden behind the body.</summary>
         static float CrestShape(Vector2 p)

@@ -26,6 +26,12 @@ namespace Cameli.Game
         const float SectionHeight = 96f;
         const float FlowerSize = 150f;
 
+        /// <summary>
+        /// Taps are ignored this long after the garden opens, so the second tap of a double tap on the title (or a
+        /// button that leads here) can't open a stage.
+        /// </summary>
+        const float TapGuardSeconds = 0.25f;
+
         /// <summary>First stage id of each section (design doc §5: 5 tutorial, 40 Easy, 50 Medium, 50 Hard).</summary>
         static readonly (int firstId, string name)[] Sections =
         {
@@ -37,12 +43,16 @@ namespace Cameli.Game
         Action<int> play;
         RectTransform viewport;
         RectTransform content;
+        ScrollRect scroll;
+        CanvasGroup inputGate;
+        float tapsFrom = -1f;
         Text starsLabel;
         Button continueButton;
         Text continueLabel;
         int continueIndex = -1;
         int scrollTarget = -1;
-        int scrollWaitFrames;
+        int scrollFrame;
+        float scrolledHeight;
 
         internal static GardenScreen Create(RectTransform parent, Action openMenu, Action<int> play)
         {
@@ -74,6 +84,7 @@ namespace Cameli.Game
         void Build(RectTransform root, Action openMenu, Action<int> onPlay)
         {
             play = onPlay;
+            inputGate = root.gameObject.AddComponent<CanvasGroup>();
 
             RectTransform header = Ui.TopStrip(Ui.NewRect("Header", root), HeaderTop, HeaderHeight, 36f);
             Button menuButton = Widgets.IconButton(header, "Menu", SpriteFactory.MenuIcon, openMenu);
@@ -95,7 +106,7 @@ namespace Cameli.Game
             content.pivot = new Vector2(0.5f, 1f);
             content.anchoredPosition = Vector2.zero;
             content.sizeDelta = Vector2.zero;
-            var scroll = viewport.gameObject.AddComponent<ScrollRect>();
+            scroll = viewport.gameObject.AddComponent<ScrollRect>();
             scroll.viewport = viewport;
             scroll.content = content;
             scroll.horizontal = false;
@@ -148,6 +159,8 @@ namespace Cameli.Game
         internal void Show()
         {
             gameObject.SetActive(true);
+            inputGate.blocksRaycasts = false;
+            tapsFrom = Time.unscaledTime + TapGuardSeconds;
             if (stages == null) return;
 
             int lastOpen = LastOpenIndex(stages);
@@ -172,20 +185,38 @@ namespace Cameli.Game
                 ? $"이어하기  {stages[continueIndex].Id}. {stages[continueIndex].Title}"
                 : "이어하기";
 
+            // Scroll right away so the garden never shows at the top first. Should the canvas still change size
+            // this frame (the very first frame, a resize), Update scrolls once more next frame with the final height.
             scrollTarget = continueIndex;
-            scrollWaitFrames = 2; // the canvas size settles after the first frame
+            scrollFrame = Time.frameCount;
+            ScrollTo(scrollTarget);
         }
 
         internal void Hide() => gameObject.SetActive(false);
 
         void Update()
         {
-            if (scrollTarget < 0 || --scrollWaitFrames > 0) return;
+            if (tapsFrom >= 0f && Time.unscaledTime >= tapsFrom)
+            {
+                tapsFrom = -1f;
+                inputGate.blocksRaycasts = true;
+            }
+
+            if (scrollTarget < 0 || Time.frameCount == scrollFrame) return;
+            if (!Mathf.Approximately(viewport.rect.height, scrolledHeight)) ScrollTo(scrollTarget);
+            scrollTarget = -1;
+        }
+
+        /// <summary>Centers tile <paramref name="index"/> in the viewport as far as the content allows.</summary>
+        void ScrollTo(int index)
+        {
+            if (index < 0 || index >= tiles.Count) return;
+            scroll.StopMovement();
             float view = viewport.rect.height;
             float max = Mathf.Max(0f, content.sizeDelta.y - view);
-            float y = tiles[scrollTarget].Top - (view - TileHeight) / 2f;
+            float y = tiles[index].Top - (view - TileHeight) / 2f;
             content.anchoredPosition = new Vector2(0f, Mathf.Clamp(y, 0f, max));
-            scrollTarget = -1;
+            scrolledHeight = view;
         }
 
         static int SectionOf(int id)

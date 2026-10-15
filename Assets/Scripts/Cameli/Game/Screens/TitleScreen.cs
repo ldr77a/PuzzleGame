@@ -11,8 +11,12 @@ namespace Cameli.Game
     /// </summary>
     sealed class TitleScreen
     {
+        /// <summary>Taps this soon after showing are ignored, so a double tap that brought us here doesn't leave again.</summary>
+        const float TapGuardSeconds = 0.25f;
+
         readonly GameObject root;
         readonly CameliFigure cameli;
+        float shownAt;
 
         public GameObject Root => root;
 
@@ -47,6 +51,7 @@ namespace Cameli.Game
             Ui.Stretch(catcher.rectTransform, -Widgets.Bleed, -Widgets.Bleed, -Widgets.Bleed, -Widgets.Bleed);
             Widgets.Clickable(catcher, () =>
             {
+                if (Time.unscaledTime - shownAt < TapGuardSeconds) return;
                 Sfx.Play(SfxKind.Button);
                 start();
             });
@@ -56,6 +61,7 @@ namespace Cameli.Game
         public void Show(Color cameliColor)
         {
             cameli.SetColor(cameliColor);
+            shownAt = Time.unscaledTime;
             root.SetActive(true);
         }
 

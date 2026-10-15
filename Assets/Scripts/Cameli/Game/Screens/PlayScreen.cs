@@ -19,12 +19,16 @@ namespace Cameli.Game
         const float ClearViewDelay = 0.3f;
         const string OverfilledMessage = "방울이 너무 많아요. 되돌리기나 처음부터를 눌러 보세요.";
 
+        /// <summary>Board taps right after entering are ignored: the second tap of a double tap on a garden tile or [다음].</summary>
+        const float EnterTapGuardSeconds = 0.25f;
+
         readonly Queue<Direction> bufferedMoves = new Queue<Direction>();
         readonly PlaytestLog playtestLog = new PlaytestLog();
         List<StageDefinition> stages;
         int stageIndex;
         GameSession session;
         Direction? stepHint;
+        float tapsFrom;
 
         PlayHud hud;
         RectTransform boardArea;
@@ -44,6 +48,12 @@ namespace Cameli.Game
         public bool HasSession => session != null;
 
         public bool ClearShowing => clearView.IsVisible;
+
+        /// <summary>
+        /// The open stage is cleared: from the moment the clearing move is made, through its slide and the beat
+        /// before the clear view, and while the clear view shows.
+        /// </summary>
+        public bool StageCleared => session != null && session.IsCleared;
 
         /// <summary>Moves, undo, restart, and hints are accepted: a stage is open with no window over it.</summary>
         bool Interactive => session != null && !clearView.IsVisible && !overlayOpen();
@@ -99,6 +109,7 @@ namespace Cameli.Game
             playtestLog.Begin(Stage.Id);
             bufferedMoves.Clear();
             stepHint = null;
+            tapsFrom = Time.unscaledTime + EnterTapGuardSeconds;
             clearView.Hide();
 
             hud.SetStage(Stage, HintStore.IsRecipeRevealed(Stage.Id));
@@ -314,7 +325,9 @@ namespace Cameli.Game
 
         /// <summary>
         /// First hint on a stage reveals the recipe; later ones show the next step from the current state. A hint
-        /// is only spent when it tells the player something new (spec §6).
+        /// is only spent when it tells the player something new (spec §6), so the grant popup only comes up when
+        /// a hint would be spent and none are left: the glowing-cell reminder and the stuck and search-limit
+        /// messages are free and show even at 0 hints.
         /// </summary>
         void OnHintPressed()
         {
@@ -323,18 +336,19 @@ namespace Cameli.Game
             bufferedMoves.Clear();
             if (session == null || session.IsCleared) return;
 
-            if (HintStore.Count == 0)
+            if (stepHint.HasValue)
             {
-                offerGrant(GrantKind.Hint, () =>
-                {
-                    HintStore.Add(GrantPopup.HintReward);
-                    if (session != null) hud.Refresh(session);
-                });
+                hud.ShowMessage("빛나는 칸으로 가 보세요.");
                 return;
             }
 
             if (!HintStore.IsRecipeRevealed(Stage.Id))
             {
+                if (HintStore.Count == 0)
+                {
+                    OfferHintGrant();
+                    return;
+                }
                 HintStore.TrySpend();
                 HintStore.RevealRecipe(Stage.Id);
                 hud.Card.ShowRecipe(true);
@@ -343,16 +357,15 @@ namespace Cameli.Game
                 return;
             }
 
-            if (stepHint.HasValue)
-            {
-                hud.ShowMessage("빛나는 칸으로 가 보세요.");
-                return;
-            }
-
             Hint hint = Hints.Next(session);
             switch (hint.Kind)
             {
                 case HintKind.NextStep:
+                    if (HintStore.Count == 0)
+                    {
+                        OfferHintGrant();
+                        return;
+                    }
                     HintStore.TrySpend();
                     session.MarkStepHint();
                     stepHint = hint.Direction;
@@ -371,6 +384,15 @@ namespace Cameli.Game
                     hud.ShowMessage("지금은 길을 찾지 못했어요");
                     break;
             }
+        }
+
+        void OfferHintGrant()
+        {
+            offerGrant(GrantKind.Hint, () =>
+            {
+                HintStore.Add(GrantPopup.HintReward);
+                if (session != null) hud.Refresh(session);
+            });
         }
 
         /// <summary>A new attempt on the same stage: full undos, no star cap, guides back.</summary>
@@ -415,7 +437,8 @@ namespace Cameli.Game
 
         void OnMenuPressed()
         {
-            if (session == null || clearView.IsVisible) return;
+            // Once cleared the clear view is showing or about to; the menu would hide the bloom under it.
+            if (session == null || session.IsCleared) return;
             bufferedMoves.Clear();
             openMenu();
         }
@@ -429,7 +452,7 @@ namespace Cameli.Game
 
         void OnBoardTapped(int column, int row)
         {
-            if (session == null) return;
+            if (session == null || Time.unscaledTime < tapsFrom) return;
             int x = session.State.Position % Stage.Width;
             int y = session.State.Position / Stage.Width;
             int dx = column - x, dy = row - y;

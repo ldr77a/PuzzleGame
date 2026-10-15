@@ -178,6 +178,42 @@ namespace Cameli.Tests
             Assert.Throws<StageFormatException>(() => WithTutorial(null, "north"));
             Assert.Throws<StageFormatException>(() => WithTutorial(null, "Right"));
         }
+
+        [Test]
+        public void RejectsFocusOnAWallOrTheStart()
+        {
+            // Y # Y
+            // Y S R
+            // Y Y Y
+            StageFile File(int[] focus) => new StageFile
+            {
+                id = 1, rows = new[] { "Y # Y", "Y S R", "Y Y Y" }, target = "R", focus = focus,
+            };
+            Assert.Throws<StageFormatException>(() => StageDefinition.FromFile(File(new[] { 1, 0 })), "wall");
+            Assert.Throws<StageFormatException>(() => StageDefinition.FromFile(File(new[] { 1, 1 })), "start");
+            Assert.AreEqual(5, StageDefinition.FromFile(File(new[] { 2, 1 })).FocusIndex);
+        }
+
+        [Test]
+        public void RejectsSwipeIntoAWallOrOffTheBoard()
+        {
+            // Y # Y
+            // Y S R
+            // Y Y Y
+            StageFile Walled(string swipe) => new StageFile
+            {
+                id = 1, rows = new[] { "Y # Y", "Y S R", "Y Y Y" }, target = "R", swipe = swipe,
+            };
+            Assert.Throws<StageFormatException>(() => StageDefinition.FromFile(Walled("up")), "wall above the start");
+            Assert.AreEqual(Direction.Right, StageDefinition.FromFile(Walled("right")).Swipe);
+
+            // S R      on a 2x2 board the start is the top-left cell
+            // Y Y
+            StageFile Small(string swipe) => new StageFile { id = 1, rows = new[] { "S R", "Y Y" }, target = "R", swipe = swipe };
+            Assert.Throws<StageFormatException>(() => StageDefinition.FromFile(Small("up")), "off the top edge");
+            Assert.Throws<StageFormatException>(() => StageDefinition.FromFile(Small("left")), "off the left edge");
+            Assert.AreEqual(Direction.Down, StageDefinition.FromFile(Small("down")).Swipe);
+        }
     }
 
     public class RulesTests
@@ -511,6 +547,14 @@ namespace Cameli.Tests
         }
 
         [Test]
+        public void TrySolveReportsUnsolvable()
+        {
+            StageDefinition stage = TestStages.Make("B", null, "R R R", "R S R", "R R R");
+            Assert.AreEqual(SearchResult.Unsolvable, Solver.TrySolve(stage, BoardState.Initial(stage), out Solution solution));
+            Assert.IsNull(solution);
+        }
+
+        [Test]
         public void SolvesFromAGivenState()
         {
             var session = new GameSession(TestStages.Basic());
@@ -601,6 +645,97 @@ namespace Cameli.Tests
             Assert.AreEqual(HintKind.Stuck, hint.Kind);
             Assert.AreEqual(2, hint.UndosNeeded);
             Assert.IsFalse(hint.UndoWithinReach);
+        }
+
+        [Test]
+        public void DeadEndExactlyAtTheRemainingUndosIsWithinReach()
+        {
+            var session = new GameSession(TestStages.Ratio());
+            session.Move(Direction.Right);
+            session.Undo();
+            session.Move(Direction.Up);
+            session.Move(Direction.Left);
+            session.Move(Direction.Right);
+            Assert.AreEqual(2, session.UndosRemaining);
+            Hint hint = Hints.Next(session);
+            Assert.AreEqual(HintKind.Stuck, hint.Kind);
+            Assert.AreEqual(2, hint.UndosNeeded);
+            Assert.IsTrue(hint.UndoWithinReach, "k equal to the undos left still reaches");
+        }
+
+        [Test]
+        public void NoEarlierClearGivesMinusOne()
+        {
+            var session = new GameSession(TestStages.Make("B", null, "R R R", "R S R", "R R R"));
+            Hint hint = Hints.Next(session);
+            Assert.AreEqual(HintKind.Stuck, hint.Kind, "no history at all");
+            Assert.AreEqual(-1, hint.UndosNeeded);
+            Assert.IsFalse(hint.UndoWithinReach);
+
+            session.Move(Direction.Up);
+            session.Move(Direction.Down);
+            hint = Hints.Next(session);
+            Assert.AreEqual(HintKind.Stuck, hint.Kind);
+            Assert.AreEqual(-1, hint.UndosNeeded, "no earlier state of the attempt has a clear");
+            Assert.IsFalse(hint.UndoWithinReach);
+        }
+
+        [Test]
+        public void DeadEndPastAGateUndoesBackOverTheGate()
+        {
+            // Y # #
+            // g0 S R     g0 = red gate (red 1); target red 1 + blue 1
+            // # B #
+            // Spending the only red on the gate leaves no way to the target; the fix is before the gate.
+            var session = new GameSession(TestStages.Make("RB", new[] { "R" }, "Y # #", "g0 S R", "# B #"));
+            session.Move(Direction.Right);
+            session.Move(Direction.Left);
+            Assert.AreEqual(MoveOutcome.PassedGate, session.Move(Direction.Left));
+            Assert.AreEqual(MoveOutcome.Ate, session.Move(Direction.Up));
+
+            Hint hint = Hints.Next(session);
+            Assert.AreEqual(HintKind.Stuck, hint.Kind);
+            Assert.AreEqual(2, hint.UndosNeeded, "back past the gate cell, to the start holding red");
+            Assert.IsTrue(hint.UndoWithinReach);
+
+            for (int i = 0; i < hint.UndosNeeded; i++) session.Undo();
+            Assert.AreEqual(session.Stage.StartIndex, session.State.Position);
+            Assert.AreEqual("R", session.State.Drops.ToString(), "the undo gives back what the gate took");
+            hint = Hints.Next(session);
+            Assert.AreEqual(HintKind.NextStep, hint.Kind);
+            Assert.AreEqual(Direction.Down, hint.Direction);
+        }
+
+        [Test]
+        public void SearchCapDuringTheHistoryScanGivesNoHint()
+        {
+            // Ratio dead end: the current state has 3 reachable states, the earlier ones more; 4 states in all
+            // finish the first search but not the scan back through the history, which shares the budget.
+            var session = new GameSession(TestStages.Ratio());
+            session.Move(Direction.Up);
+            session.Move(Direction.Left);
+            session.Move(Direction.Right);
+            const int budget = 4;
+            Assert.AreEqual(SearchResult.Unsolvable, Solver.TrySolve(session.Stage, session.State, out _, maxStates: budget),
+                "the current state alone fits the budget");
+            Assert.AreEqual(HintKind.SearchLimit, Hints.Next(session, budget).Kind);
+            Assert.AreEqual(HintKind.Stuck, Hints.Next(session).Kind, "with the default budget it is a dead end");
+        }
+
+        [Test]
+        public void OverfilledStateIsADeadEnd()
+        {
+            var session = new GameSession(TestStages.Ratio());
+            session.Move(Direction.Up);
+            session.Move(Direction.Left);
+            session.Move(Direction.Right);
+            session.Move(Direction.Right);
+            Assert.IsTrue(Rules.IsOverfilled(session.Stage, session.State), "RRB for a two-drop target");
+
+            Hint hint = Hints.Next(session);
+            Assert.AreEqual(HintKind.Stuck, hint.Kind);
+            Assert.AreEqual(3, hint.UndosNeeded, "back to a single red");
+            Assert.IsTrue(hint.UndoWithinReach);
         }
 
         [Test]

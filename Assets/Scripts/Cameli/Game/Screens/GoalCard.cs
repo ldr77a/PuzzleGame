@@ -8,7 +8,8 @@ namespace Cameli.Game
     /// <summary>
     /// The white card above the board (Phase 2 spec §2): the bud to bloom in the target color, the drop slots
     /// (eaten drops as colored dots in eating order, the rest dashed), "방울 x/y", the recipe chips once a hint
-    /// revealed them, and Cameli in the current mix.
+    /// revealed them, and Cameli in the current mix. The chips stay in the middle column: on one row, or on two
+    /// when that lets them be bigger, shrunk to fit either way (up to five colors).
     /// </summary>
     sealed class GoalCard
     {
@@ -19,13 +20,26 @@ namespace Cameli.Game
         const float SlotSize = 58f;
         const float SlotGap = 14f;
         const float SlotRowTop = 50f;
+        const float ChipTop = SlotRowTop + SlotSize + 96f;
+        const float ChipBottomMargin = 12f;
+        const float ChipHeight = 64f;
+        const float ChipGap = 14f;
+        const float ChipRowGap = 10f;
+        const float ChipDot = 32f;
+        const float ChipPadLeft = 18f, ChipPadRight = 22f, ChipSpacing = 10f;
+
+        /// <summary>How far the chips may reach into the side columns: less than the space beside the bud and Cameli.</summary>
+        const float ChipOverhang = 20f;
 
         readonly RectTransform bud;
         readonly CameliFigure cameli;
         readonly RectTransform slotRow;
         readonly List<Slot> slots = new List<Slot>();
         readonly Text dropsLabel;
-        readonly RectTransform chipRow;
+        readonly RectTransform chipArea;
+        readonly RectTransform chipBlock;
+        readonly List<RectTransform> chips = new List<RectTransform>();
+        readonly List<float> chipWidths = new List<float>();
         readonly List<int> order = new List<int>();
 
         public GoalCard(RectTransform parent, float top, float sideInset)
@@ -49,27 +63,24 @@ namespace Cameli.Game
             dropsLabel = Widgets.Label(middle, "Drop Count", "", 42, Theme.Ink);
             Ui.TopStrip(dropsLabel.rectTransform, SlotRowTop + SlotSize + 18f, 60f);
 
-            chipRow = Ui.TopStrip(Ui.NewRect("Recipe", middle), SlotRowTop + SlotSize + 100f, 64f, -40f);
-            var layout = chipRow.gameObject.AddComponent<HorizontalLayoutGroup>();
-            layout.childAlignment = TextAnchor.MiddleCenter;
-            layout.spacing = 14f;
-            layout.childControlWidth = true;
-            layout.childControlHeight = true;
-            layout.childForceExpandWidth = false;
-            layout.childForceExpandHeight = true;
+            chipArea = Ui.TopStrip(Ui.NewRect("Recipe", middle), ChipTop, Height - ChipTop - ChipBottomMargin, -ChipOverhang);
+            // The chips sit in one block hanging from the top center of the area; LayoutChips sizes and scales it.
+            chipBlock = Ui.Box(Ui.NewRect("Chips", chipArea), new Vector2(0.5f, 1f), Vector2.zero, Vector2.zero);
         }
 
         /// <summary>New stage: bud color and recipe chips (shown only when <paramref name="recipeRevealed"/>).</summary>
         public void SetStage(StageDefinition stage, bool recipeRevealed)
         {
             Blossoms.SetBudColor(bud, Theme.ToColor(stage.TargetColor));
-            foreach (Transform chip in chipRow) Object.Destroy(chip.gameObject);
+            foreach (RectTransform chip in chips) Object.Destroy(chip.gameObject);
+            chips.Clear();
+            chipWidths.Clear();
             for (int color = 0; color < Palette.Count; color++)
                 if (stage.Target[color] > 0) AddChip(color, stage.Target[color]);
             ShowRecipe(recipeRevealed);
         }
 
-        public void ShowRecipe(bool visible) => chipRow.gameObject.SetActive(visible);
+        public void ShowRecipe(bool visible) => chipArea.gameObject.SetActive(visible);
 
         public void Refresh(GameSession session)
         {
@@ -94,6 +105,64 @@ namespace Cameli.Game
                 Ui.Box(slot.Root, new Vector2(0.5f, 0.5f), new Vector2(x, 0f), new Vector2(size, size));
                 if (i < order.Count) slot.ShowDrop(Theme.ToColor(Palette.Color(order[i])));
                 else slot.ShowEmpty();
+            }
+            LayoutChips();
+        }
+
+        /// <summary>
+        /// Puts the chips on one row, or two (the first one longer) when that lets them be clearly bigger, centered, and
+        /// scales the block down until it fits the area. Rerun when the area's width may have changed.
+        /// </summary>
+        void LayoutChips()
+        {
+            int count = chips.Count;
+            if (count == 0) return;
+            float areaWidth = chipArea.rect.width > 0f ? chipArea.rect.width : 540f;
+            float areaHeight = Height - ChipTop - ChipBottomMargin;
+
+            float oneRow = RowWidth(0, count);
+            float oneScale = Mathf.Min(1f, areaWidth / oneRow, areaHeight / ChipHeight);
+            int firstRow = count;
+            float blockWidth = oneRow, blockHeight = ChipHeight, scale = oneScale;
+            if (count > 1)
+            {
+                int split = (count + 1) / 2;
+                float twoRows = Mathf.Max(RowWidth(0, split), RowWidth(split, count));
+                float twoHeight = 2f * ChipHeight + ChipRowGap;
+                float twoScale = Mathf.Min(1f, areaWidth / twoRows, areaHeight / twoHeight);
+                if (twoScale > oneScale + 0.05f) // a single row reads better, so two rows must be clearly bigger
+                {
+                    firstRow = split;
+                    blockWidth = twoRows;
+                    blockHeight = twoHeight;
+                    scale = twoScale;
+                }
+            }
+
+            chipBlock.sizeDelta = new Vector2(blockWidth, blockHeight);
+            chipBlock.localScale = new Vector3(scale, scale, 1f);
+            PlaceRow(0, firstRow, blockWidth, 0f);
+            if (firstRow < count) PlaceRow(firstRow, count, blockWidth, ChipHeight + ChipRowGap);
+        }
+
+        float RowWidth(int from, int to)
+        {
+            float width = (to - from - 1) * ChipGap;
+            for (int i = from; i < to; i++) width += chipWidths[i];
+            return width;
+        }
+
+        /// <summary>Lays chips [from, to) left to right, the row centered in the block, its top <paramref name="top"/> down.</summary>
+        void PlaceRow(int from, int to, float blockWidth, float top)
+        {
+            float x = (blockWidth - RowWidth(from, to)) / 2f;
+            for (int i = from; i < to; i++)
+            {
+                RectTransform chip = chips[i];
+                chip.anchorMin = chip.anchorMax = chip.pivot = new Vector2(0f, 1f);
+                chip.sizeDelta = new Vector2(chipWidths[i], ChipHeight);
+                chip.anchoredPosition = new Vector2(x, -top);
+                x += chipWidths[i] + ChipGap;
             }
         }
 
@@ -131,10 +200,10 @@ namespace Cameli.Game
 
         void AddChip(int color, int count)
         {
-            Image chip = Widgets.Round(Ui.NewImage($"Chip {Palette.Letter(color)}", chipRow, SpriteFactory.RoundedRect, Theme.Background), 32f);
+            Image chip = Widgets.Round(Ui.NewImage($"Chip {Palette.Letter(color)}", chipBlock, SpriteFactory.RoundedRect, Theme.Background), 32f);
             var layout = chip.gameObject.AddComponent<HorizontalLayoutGroup>();
-            layout.padding = new RectOffset(18, 22, 0, 0);
-            layout.spacing = 10f;
+            layout.padding = new RectOffset((int)ChipPadLeft, (int)ChipPadRight, 0, 0);
+            layout.spacing = ChipSpacing;
             layout.childAlignment = TextAnchor.MiddleCenter;
             layout.childControlWidth = true;
             layout.childControlHeight = true;
@@ -143,11 +212,15 @@ namespace Cameli.Game
 
             Image dot = Ui.NewImage("Dot", chip.transform, SpriteFactory.Circle, Theme.ToColor(Palette.Color(color)));
             var dotSize = dot.gameObject.AddComponent<LayoutElement>();
-            dotSize.preferredWidth = dotSize.preferredHeight = 32f;
+            dotSize.preferredWidth = dotSize.preferredHeight = ChipDot;
             Ui.Stretch(Ui.NewImage("Ring", dot.transform, SpriteFactory.Ring, new Color(Theme.Ink.r, Theme.Ink.g, Theme.Ink.b, 0.25f)).rectTransform);
 
             Text label = Widgets.Label(chip.transform, "Label", $"{Palette.Name(color)} {count}", 34, Theme.Ink);
             label.horizontalOverflow = HorizontalWrapMode.Overflow;
+
+            // The chip's own width, fixed here so LayoutChips can arrange the rows without a layout pass.
+            chips.Add(chip.rectTransform);
+            chipWidths.Add(Mathf.Ceil(ChipPadLeft + ChipDot + ChipSpacing + label.preferredWidth + ChipPadRight));
         }
 
         static RectTransform Column(RectTransform card, string name, float side)

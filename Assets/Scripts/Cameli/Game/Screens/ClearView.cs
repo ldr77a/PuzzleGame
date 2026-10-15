@@ -10,7 +10,8 @@ namespace Cameli.Game
     /// The clear sequence over the play screen (Phase 2 spec §5): the board fades back, a camellia in the target
     /// color blooms, then the title, the stars one by one, the moves, the star-cap reason, and the buttons. A tap
     /// during the sequence jumps to the end. The buttons only take input once everything is shown, so the
-    /// skipping tap can never press one.
+    /// skipping tap can never press one, and a moment longer after a skip, so neither can the second tap of a
+    /// double tap.
     /// </summary>
     public sealed class ClearView : MonoBehaviour, IPointerClickHandler
     {
@@ -22,6 +23,7 @@ namespace Cameli.Game
         const float FadeSeconds = 0.2f;
         const float StarPopSeconds = 0.22f;
         const float StarGapSeconds = 0.1f;
+        const float SkipGuardSeconds = 0.25f;
 
         Image veil;
         RectTransform bloom;
@@ -37,6 +39,7 @@ namespace Cameli.Game
         Button lastButton;
         Coroutine sequence;
         int earned;
+        float buttonsFrom = -1f;
 
         public bool IsVisible => gameObject.activeSelf;
 
@@ -116,15 +119,28 @@ namespace Cameli.Game
         public void Hide()
         {
             StopSequence();
+            buttonsFrom = -1f;
             gameObject.SetActive(false);
         }
 
-        /// <summary>Jumps to the end state; does nothing once the sequence has finished.</summary>
+        /// <summary>
+        /// Jumps to the end state; does nothing once the sequence has finished. The buttons show at once but take
+        /// taps only after <see cref="SkipGuardSeconds"/> (unscaled), so a double tap can't skip and press.
+        /// </summary>
         public void Skip()
         {
             if (sequence == null) return;
             StopSequence();
             ShowFinal();
+            buttons.blocksRaycasts = false; // taps meanwhile land on the veil, where a skip does nothing
+            buttonsFrom = Time.unscaledTime + SkipGuardSeconds;
+        }
+
+        void Update()
+        {
+            if (buttonsFrom < 0f || Time.unscaledTime < buttonsFrom) return;
+            buttonsFrom = -1f;
+            buttons.blocksRaycasts = true;
         }
 
         public void OnPointerClick(PointerEventData eventData) => Skip();
@@ -139,6 +155,7 @@ namespace Cameli.Game
 
         IEnumerator Play()
         {
+            buttonsFrom = -1f;
             SetVeil(0f);
             SetBloom(0f);
             heading.alpha = 0f;

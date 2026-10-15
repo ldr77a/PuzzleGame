@@ -79,8 +79,10 @@ namespace Cameli.Game
 
         /// <summary>
         /// Never called. Unity adds android.permission.VIBRATE to the manifest only when scripts reference
-        /// Handheld.Vibrate, and the Vibrator calls above need that permission.
+        /// Handheld.Vibrate, and the Vibrator calls above need that permission. [Preserve] keeps code stripping
+        /// from removing it.
         /// </summary>
+        [UnityEngine.Scripting.Preserve]
         static void KeepVibratePermission() => Handheld.Vibrate();
     }
 }
