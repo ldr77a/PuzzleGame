@@ -51,7 +51,7 @@ Phase 1 (the Unity prototype) is done on a separate git branch.
     - Clearing, and passing a gate, need the color (±2) **and** the exact drop count (`Rules.Meets`). Ratio multiples don't count.
     - `Rules.IsOverfilled` flags a mix with more drops than any recipe on the stage. The solver prunes those states.
     - A passed gate leaves the player standing on the gate cell. Stepping back out the same side with an empty mix is allowed by design, so stages must need the gate as a door; `lab.sh check` verifies this.
-  - `GameSession` adds undo (3 per attempt) and restart, which also refills the undos. Using an undo or a "next step" hint caps the attempt at ★★ (`UsedUndo`, `UsedStepHint`, `Scoring.Stars(moves, optimal, assisted)`); restart clears both.
+  - `GameSession` adds undo (3 per attempt; `GrantUndos` adds more, the ad reward) and restart, which also refills the undos. Using an undo or a "next step" hint caps the attempt at ★★ (`UsedUndo`, `UsedStepHint`, `Scoring.Stars(moves, optimal, assisted)`); restart clears both.
   - `Solver` is a BFS for shortest clears, from the initial board or any `BoardState`. Tooling and tests run it unbounded; at runtime only `Hints.Next(session)` runs it, capped at `Hints.DefaultMaxStates` states.
   - Colors are `Rgb`/`DropCounts`. `ColorMath` reproduces the legacy `ColorMixer` math.
   - Keep this assembly free of UnityEngine so the harness can run it.
@@ -60,7 +60,13 @@ Phase 1 (the Unity prototype) is done on a separate git branch.
   - `BoardView` positions cells with normalized anchors. `BoardInput` handles swipe and tap.
   - `HudView` and `ClearPanel` are the UI. `SpriteFactory` generates the flat shapes and icons; `Blossoms` stacks them into camellias and buds, and `CameliFigure` into the temporary Cameli. `StageLibrary` loads the stages. `Progress` stores progress in PlayerPrefs.
   - `Theme` holds the "동백 잎" colors and `Ui.Font` loads Jua from `Resources/Fonts/` (OFL). `Sfx` synthesizes the sound effects, `Haptics.Tap` vibrates (iOS plugin in `Assets/Plugins/iOS/`), and `Settings` stores the sound and vibration switches.
-  - Playtest tools (Phase 1 only): holding the stage title for 2 s (`LongPress`) opens `PlaytestPanel`, which offers next tester / log summary. `PlaytestLog` appends one row per stage attempt to `persistentDataPath/playtest.csv`. The moderator's guide is `docs/플레이테스트 기록지.md`.
+  - Playtest tools: holding the stage title for 2 s (`LongPress`) opens `PlaytestPanel`, which offers next tester / log summary. `PlaytestLog` appends one row per stage attempt to `persistentDataPath/playtest.csv`. The moderator's guide is `docs/플레이테스트 기록지.md`.
+  - **Phase 2 app (`GardenApp`, scene `Garden.unity`)** follows `docs/2단계 화면 명세.md`. `GardenApp` builds everything in code and routes Title → Garden → Play, with `MenuSheet`, `GrantPopup` (reward placeholder, marked `// 4단계: 보상형 광고`), and `PlaytestPanel` on top; Escape (Android back) closes the top window first. The screens live in `Game/Screens/`:
+    - `TitleScreen`, `GardenScreen` (scrolling 4-column stage bed by section; also decides the next stage and "이어하기"), `PlayScreen` (session, input buffering, hints, guides, feedback, playtest log; same attempt boundaries as `CameliGame`), `PlayHud` + `GoalCard` (everything around the board), `ClearView` (bloom sequence, tap to skip).
+    - `Widgets` holds the shared card/button/star helpers; `Sway`, `Blink`, `SlideIn` are tiny unscaled-time animators.
+    - `BoardView.FigureToken` draws the token as `CameliFigure`; `ShowGlow`, `ShowArrow`, `ShowSwipe` draw the tutorial/hint guides. `CameliGame` leaves them off.
+    - `HintStore` keeps the shared hint count (`cameli.hints`, starts at 3) and per-stage recipe reveals (`cameli.recipe.{id}`). `Progress.ResetAll` (next tester) clears them too.
+    - Jua lacks "·", arrows, and similar symbols: keep UI strings to Hangul, Latin, digits, and ★, and draw icons with `SpriteFactory`.
 - **Stage files** live in `Assets/Resources/CameliStages/stage_NN.json`, matching `StageFile` in `Core/Stage.cs`:
   - `rows`: space-separated tokens, top row first. Color letters are `R O Y G B N P`. `S` is the start (must be the center cell; on even sizes, the top-left of the central 2×2), `#` is a wall, `gN` is a gate.
   - `target`, `gates`: recipe strings such as `"RRY"`.
@@ -69,7 +75,7 @@ Phase 1 (the Unity prototype) is done on a separate git branch.
   - Ids must run 1..n.
 - **Editor menu `Cameli/`** (`Assets/Scripts/Editor/Cameli/CameliMenu.cs`):
   - Apply the mobile player settings.
-  - Create `Assets/0. Scenes/Prototype.unity` and make it the only enabled build scene.
+  - Create `Assets/0. Scenes/Prototype.unity` (Phase 1) or `Assets/0. Scenes/Garden.unity` ("정원 씬 만들기", Phase 2) and make it the only enabled build scene.
   - Validate stages.
   - One-click builds into `~/Builds/CameliGarden`. "Android 빌드 후 폰에서 실행" builds the APK and runs it on a USB-connected phone (`AutoRunPlayer`). "iOS Xcode 프로젝트 만들기" generates the Xcode project and opens it.
 

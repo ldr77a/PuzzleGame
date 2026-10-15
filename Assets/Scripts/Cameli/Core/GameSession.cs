@@ -75,6 +75,15 @@ namespace Cameli.Core
             return true;
         }
 
+        /// <summary>
+        /// Adds undos to this attempt (the reward for watching an ad once undos run out). Using them still caps the
+        /// stars; a restart refills to <see cref="UndoAllowance"/> as usual. Ignores counts below one.
+        /// </summary>
+        public void GrantUndos(int count)
+        {
+            if (count > 0) UndosRemaining += count;
+        }
+
         /// <summary>Records that a "next step" hint was shown. Ignored once cleared, so it never lowers a scored clear.</summary>
         public void MarkStepHint()
         {

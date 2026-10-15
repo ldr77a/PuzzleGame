@@ -14,10 +14,11 @@ using UnityEngine.InputSystem.UI;
 
 namespace Cameli.EditorTools
 {
-    /// <summary>Phase 1 setup and validation commands under the Cameli menu.</summary>
+    /// <summary>Setup, scene creation, build, and validation commands under the Cameli menu.</summary>
     static class CameliMenu
     {
         const string ScenePath = "Assets/0. Scenes/Prototype.unity";
+        const string GardenScenePath = "Assets/0. Scenes/Garden.unity";
         const string StageFolder = "Assets/Resources/" + StageLibrary.ResourceFolder;
 
         /// <summary>Temporary; the final bundle ID is decided in Phase 4.</summary>
@@ -40,10 +41,20 @@ namespace Cameli.EditorTools
         }
 
         [MenuItem("Cameli/프로토타입 씬 만들기")]
-        static void CreatePrototypeScene()
+        static void CreatePrototypeScene() => CreateAppScene(ScenePath, "Cameli Game", typeof(CameliGame));
+
+        /// <summary>Phase 2: the title, garden, and play screens (GardenApp).</summary>
+        [MenuItem("Cameli/정원 씬 만들기")]
+        static void CreateGardenScene() => CreateAppScene(GardenScenePath, "Garden App", typeof(GardenApp));
+
+        /// <summary>
+        /// Creates a scene with a camera, an EventSystem, and one GameObject carrying the entry point that builds the
+        /// UI in code, then makes it the only enabled build scene; the others stay listed but off.
+        /// </summary>
+        static void CreateAppScene(string path, string objectName, Type entryPoint)
         {
-            if (File.Exists(ScenePath) &&
-                !EditorUtility.DisplayDialog("Cameli", $"{ScenePath} 파일이 이미 있어요. 새로 만들까요?", "새로 만들기", "취소"))
+            if (File.Exists(path) &&
+                !EditorUtility.DisplayDialog("Cameli", $"{path} 파일이 이미 있어요. 새로 만들까요?", "새로 만들기", "취소"))
                 return;
             if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) return;
 
@@ -54,16 +65,15 @@ namespace Cameli.EditorTools
             camera.clearFlags = CameraClearFlags.SolidColor;
             camera.backgroundColor = Theme.Background;
             new GameObject("EventSystem", typeof(EventSystem), typeof(InputSystemUIInputModule));
-            new GameObject("Cameli Game", typeof(CameliGame));
-            EditorSceneManager.SaveScene(scene, ScenePath);
+            new GameObject(objectName, entryPoint);
+            EditorSceneManager.SaveScene(scene, path);
 
-            // The prototype is the only enabled build scene; the old scenes (with the dev dashboard) stay listed but off.
-            var scenes = new List<EditorBuildSettingsScene> { new EditorBuildSettingsScene(ScenePath, true) };
+            var scenes = new List<EditorBuildSettingsScene> { new EditorBuildSettingsScene(path, true) };
             foreach (EditorBuildSettingsScene existing in EditorBuildSettings.scenes)
-                if (existing.path != ScenePath) scenes.Add(new EditorBuildSettingsScene(existing.path, false));
+                if (existing.path != path) scenes.Add(new EditorBuildSettingsScene(existing.path, false));
             EditorBuildSettings.scenes = scenes.ToArray();
             AssetDatabase.SaveAssets();   // write EditorBuildSettings.asset now instead of on the next project save
-            Debug.Log($"Created {ScenePath} and made it the only enabled build scene.");
+            Debug.Log($"Created {path} and made it the only enabled build scene.");
         }
 
         [MenuItem("Cameli/Android 빌드 후 폰에서 실행")]
@@ -103,7 +113,7 @@ namespace Cameli.EditorTools
             string[] scenes = EditorBuildSettingsScene.GetActiveSceneList(EditorBuildSettings.scenes);
             if (scenes.Length == 0)
             {
-                EditorUtility.DisplayDialog("Cameli", "빌드할 씬이 없어요. 먼저 \"Cameli → 프로토타입 씬 만들기\"를 실행해 주세요.", "확인");
+                EditorUtility.DisplayDialog("Cameli", "빌드할 씬이 없어요. 먼저 \"Cameli → 정원 씬 만들기\"를 실행해 주세요.", "확인");
                 return false;
             }
 

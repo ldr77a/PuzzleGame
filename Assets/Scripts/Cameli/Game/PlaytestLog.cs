@@ -124,8 +124,8 @@ namespace Cameli.Game
                 Totals t = pair.Value;
                 bool tutorial = true;
                 for (int id = 1; id <= TutorialStages; id++) tutorial &= t.Cleared.Contains(id);
-                text.AppendLine($"테스터 {pair.Key} · 클리어 {t.Cleared.Count}/{stageCount} · 튜토리얼 {(tutorial ? "통과" : "미통과")}");
-                text.AppendLine($"    되돌리기 {t.Undos} · 재시작 {t.Restarts} · {t.Seconds / 60}분");
+                text.AppendLine($"테스터 {pair.Key}  클리어 {t.Cleared.Count}/{stageCount}, 튜토리얼 {(tutorial ? "통과" : "미통과")}");
+                text.AppendLine($"    되돌리기 {t.Undos}, 재시작 {t.Restarts}, {t.Seconds / 60}분");
             }
             return text.ToString().TrimEnd();
         }

@@ -16,6 +16,7 @@ namespace Cameli.Game
         static Sprite circle;
         static Sprite ring;
         static Sprite star;
+        static Sprite roundedFrame, dashedRing;
         static Sprite flowerOuter, flowerInner, bud, sepal;
         static Sprite crest, crestOutline, tail, tailOutline;
         static Sprite menuIcon, restartIcon, undoIcon, bulbIcon, gridIcon, playIcon, lockIcon, backIcon;
@@ -26,6 +27,12 @@ namespace Cameli.Game
         public static Sprite Circle => circle != null ? circle : circle = Make("Circle", 128, 0, CircleAlpha);
         public static Sprite Ring => ring != null ? ring : ring = Make("Ring", 128, 0, RingAlpha);
         public static Sprite Star => star != null ? star : star = Make("Star", 128, 0, StarAlpha);
+
+        /// <summary>Outline of <see cref="RoundedRect"/>, 9-sliced the same way: the glow around a highlighted cell.</summary>
+        public static Sprite RoundedFrame => roundedFrame != null ? roundedFrame : roundedFrame = Make("RoundedFrame", 64, 22, RoundedFrameAlpha);
+
+        /// <summary>Dashed circle: an empty drop slot on the target card.</summary>
+        public static Sprite DashedRing => dashedRing != null ? dashedRing : dashedRing = Make("DashedRing", 128, 0, DashedRingAlpha);
 
         // Camellia (design doc 8.1). Layers share one square, so stack them in the same rect: see Blossoms.
 
@@ -284,6 +291,31 @@ namespace Cameli.Game
             float qy = Mathf.Abs(py - half) - (half - radius);
             float outside = new Vector2(Mathf.Max(qx, 0), Mathf.Max(qy, 0)).magnitude + Mathf.Min(Mathf.Max(qx, qy), 0) - radius;
             return Mathf.Clamp01(0.5f - outside);
+        }
+
+        static float RoundedFrameAlpha(float px, float py, int size)
+        {
+            const float stroke = 7f;
+            float inside = RoundedRectAlpha(px, py, size);
+            // The same rounded rect shrunk by the stroke, cut out of the middle.
+            const float radius = 18f - stroke;
+            float half = size / 2f;
+            float qx = Mathf.Abs(px - half) - (half - stroke - radius);
+            float qy = Mathf.Abs(py - half) - (half - stroke - radius);
+            float hole = new Vector2(Mathf.Max(qx, 0), Mathf.Max(qy, 0)).magnitude + Mathf.Min(Mathf.Max(qx, qy), 0) - radius;
+            return Mathf.Min(inside, Mathf.Clamp01(0.5f + hole));
+        }
+
+        static float DashedRingAlpha(float px, float py, int size)
+        {
+            const int dashes = 10;
+            float ring = RingAlpha(px, py, size);
+            float c = size / 2f;
+            float turns = (Mathf.Atan2(py - c, px - c) / (2f * Mathf.PI) + 1f) * dashes;
+            // Antialiased dash edges: distance to the nearest gap center, in fractions of a dash period.
+            float phase = Mathf.Abs(Mathf.Repeat(turns, 1f) - 0.5f);
+            float edge = (phase - 0.28f) * 2f * Mathf.PI * DistanceFromCenter(px, py, size) / dashes;
+            return Mathf.Min(ring, Mathf.Clamp01(0.5f - edge));
         }
 
         static float CircleAlpha(float px, float py, int size) =>

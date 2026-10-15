@@ -423,6 +423,51 @@ namespace Cameli.Tests
         }
 
         [Test]
+        public void GrantedUndosCanBeUsedAndStillCapTheStars()
+        {
+            var session = new GameSession(TestStages.BasicScored());
+            for (int i = 0; i < GameSession.UndoAllowance; i++)
+            {
+                session.Move(Direction.Left);
+                Assert.IsTrue(session.Undo());
+            }
+            session.Move(Direction.Left);
+            Assert.AreEqual(0, session.UndosRemaining);
+            Assert.IsFalse(session.CanUndo, "out of undos");
+
+            session.GrantUndos(0);
+            session.GrantUndos(-2);
+            Assert.AreEqual(0, session.UndosRemaining, "non-positive grants are ignored");
+
+            int history = session.HistoryCount;
+            session.GrantUndos(3);
+            Assert.AreEqual(3, session.UndosRemaining);
+            Assert.AreEqual(history, session.HistoryCount, "granting keeps the history");
+            Assert.IsTrue(session.UsedUndo, "granting keeps the undo use");
+            Assert.IsTrue(session.Undo());
+            Assert.AreEqual(2, session.UndosRemaining);
+            session.Move(Direction.Up);
+            session.Move(Direction.Right);
+            Assert.AreEqual(2, session.Stars, "still assisted");
+
+            session.Restart();
+            Assert.AreEqual(GameSession.UndoAllowance, session.UndosRemaining, "restart refills to the allowance");
+        }
+
+        [Test]
+        public void GrantingUndosIsNotAnAssist()
+        {
+            var session = new GameSession(TestStages.BasicScored());
+            session.GrantUndos(3);
+            Assert.AreEqual(GameSession.UndoAllowance + 3, session.UndosRemaining);
+            Assert.IsFalse(session.UsedUndo);
+            Assert.AreEqual(0, session.HistoryCount);
+            session.Move(Direction.Up);
+            session.Move(Direction.Right);
+            Assert.AreEqual(3, session.Stars);
+        }
+
+        [Test]
         public void HistoryListsEarlierStatesMostRecentFirst()
         {
             var session = new GameSession(TestStages.Basic());
