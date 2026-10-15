@@ -28,7 +28,7 @@ Phase 1 (the Unity prototype) is done on a separate git branch.
 - **`Tools/CameliHarness/` checks code without the editor** (even while it is open). It uses the C# compiler and .NET runtime bundled with the Unity version in `ProjectVersion.txt`:
   - `test-core.sh`: builds `Cameli.Core` (netstandard 2.1, like Unity) and runs the engine-free tests in `Assets/Tests/EditMode/Cameli/CoreTests.cs`.
   - `check-unity.sh`: compile-checks Assembly-CSharp, Assembly-CSharp-Editor, and the Cameli test assembly, using references and defines from the generated `.csproj` files. Run it after editing any Unity script.
-  - `lab.sh check`: validates every stage in `Assets/Resources/CameliStages`. It checks that each stage is solvable, that `optimalMoves` matches the solver, that every shortest clear ends beyond any gate (the gate is used as a door, not a reset), that gates are passed with their exact recipe, and the ambiguity filter: no other recipe with the target's (or a gate's) drop count, built from the board's tile colors, may mix within CIELAB ΔE 10 of it. It also prints the closest tile-color pair and the chance a random walk clears. `lab.sh search …` finds candidate boards and `lab.sh solve …` prints a shortest path; usage is in the script header.
+  - `lab.sh check`: validates every stage in `Assets/Resources/CameliStages`. It checks that each stage is solvable, that `optimalMoves` matches the solver, that every shortest clear ends beyond any gate (the gate is used as a door, not a reset), that gates are passed with their exact recipe, and the ambiguity filter: no other recipe with the target's (or a gate's) drop count, built from the board's tile colors, may mix within CIELAB ΔE 10 of it. It also prints the closest tile-color pair and the chance a random walk clears. The checks live in `Core/StageAudit.cs`, shared with the Unity menu "Cameli/스테이지 검증"; `LevelLab.cs` only formats them. `lab.sh search …` finds candidate boards and `lab.sh solve …` prints a shortest path; usage is in the script header.
   - Output goes to `Tools/CameliHarness/out/`, which is gitignored.
 - The Unity Editor usually has this project open. In that case, check `~/Library/Logs/Unity/Editor.log` for compile errors after editing scripts (Unity recompiles when the Editor regains focus).
 - A batch-mode compile check only works while the Editor is **closed**:
@@ -54,11 +54,12 @@ Phase 1 (the Unity prototype) is done on a separate git branch.
   - `GameSession` adds undo (3 per attempt; `GrantUndos` adds more, the ad reward) and restart, which also refills the undos. Using an undo or a "next step" hint caps the attempt at ★★ (`UsedUndo`, `UsedStepHint`, `Scoring.Stars(moves, optimal, assisted)`); restart clears both.
   - `Solver` is a BFS for shortest clears, from the initial board or any `BoardState`. Tooling and tests run it capped at `Solver.DefaultMaxStates` (2,000,000) states; at runtime only `Hints.Next(session)` runs it, capped at `Hints.DefaultMaxStates` states.
   - Colors are `Rgb`/`DropCounts`. `ColorMath` reproduces the legacy `ColorMixer` math.
+  - `StageAudit.Audit(StageFile)` returns a `StageReport` (solvable, optimal vs stored, gate use, exact gate recipes, ambiguity ΔE, tile ΔE, walk%) with `StageProblems` flags. Tooling only: `lab.sh check` and the "Cameli/스테이지 검증" menu.
   - Keep this assembly free of UnityEngine so the harness can run it.
 - **`Game/` (Assembly-CSharp, namespace `Cameli.Game`)** is the prototype client:
   - `CameliGame` is the entry point on an empty GameObject. It builds the whole uGUI in code: no prefabs and no scene wiring.
   - `BoardView` positions cells with normalized anchors. `BoardInput` handles swipe and tap.
-  - `HudView` and `ClearPanel` are the UI. `SpriteFactory` generates the flat shapes and icons; `Blossoms` stacks them into camellias and buds, and `CameliFigure` into the temporary Cameli. `StageLibrary` loads the stages. `Progress` stores progress in PlayerPrefs.
+  - `HudView` and `ClearPanel` are the UI. `SpriteFactory` generates the flat shapes and icons; `Blossoms` stacks them into camellias and buds, and `CameliFigure` into the temporary Cameli. `StageLibrary` loads the stages. `Progress` stores progress in PlayerPrefs; `Progress.DevUnlockAll` (PlayerPrefs `cameli.dev.unlockAll`, honored only in the editor and development builds) makes `Unlocked` cover every stage.
   - `Theme` holds the "동백 잎" colors and `Ui.Font` loads Jua from `Resources/Fonts/` (OFL). `Sfx` synthesizes the sound effects, `Haptics.Tap` vibrates (iOS plugin in `Assets/Plugins/iOS/`), and `Settings` stores the sound and vibration switches.
   - Playtest tools: holding the stage title for 2 s (`LongPress`) opens `PlaytestPanel`, which offers next tester / log summary. `PlaytestLog` appends one row per stage attempt to `persistentDataPath/playtest.csv`. The moderator's guide is `docs/플레이테스트 기록지.md`.
   - **Phase 2 app (`GardenApp`, scene `Garden.unity`)** follows `docs/2단계 화면 명세.md`. `GardenApp` builds everything in code and routes Title → Garden → Play, with `MenuSheet`, `GrantPopup` (reward placeholder, marked `// 4단계: 보상형 광고`), and `PlaytestPanel` on top; Escape (Android back) closes the top window first. The screens live in `Game/Screens/`:
@@ -73,10 +74,12 @@ Phase 1 (the Unity prototype) is done on a separate git branch.
   - `optimalMoves`: from the solver.
   - Optional tutorial fields: `focus` (`[x, y]`, column and row from the top; the cell glows before the first move) and `swipe` (`"up"`, `"down"`, `"left"`, `"right"`).
   - Ids must run 1..n.
+  - The user's Korean editing guide is [`docs/스테이지 수정 방법.md`](docs/스테이지%20수정%20방법.md); keep it in sync when the format, rules, or audit change.
 - **Editor menu `Cameli/`** (`Assets/Scripts/Editor/Cameli/CameliMenu.cs`):
   - Apply the mobile player settings.
   - Create `Assets/0. Scenes/Prototype.unity` (Phase 1) or `Assets/0. Scenes/Garden.unity` ("정원 씬 만들기", Phase 2) and make it the only enabled build scene.
-  - Validate stages.
+  - "스테이지 검증" runs `StageAudit` on every stage file: one Console line per stage and a summary dialog. A wrong `optimalMoves` is rewritten in place (regex on that field only, then `AssetDatabase.Refresh`); other problems, and ids not running 1..n, are only reported.
+  - "개발: 모든 스테이지 열기" is a checkable toggle for `Progress.DevUnlockAll`, so locked garden stages can be tapped while testing.
   - One-click builds into `~/Builds/CameliGarden`. "Android 빌드 후 폰에서 실행" builds the APK and runs it on a USB-connected phone (`AutoRunPlayer`). "iOS Xcode 프로젝트 만들기" generates the Xcode project and opens it.
 
 ### Stage data format (`Data/StageData.cs`)

@@ -7,14 +7,32 @@ namespace Cameli.Game
     /// Minimal prototype progress in PlayerPrefs (unlocked stage, best stars, last stage played) so playtesters
     /// can close the app and continue. The real save system comes in Phase 2.
     /// </summary>
-    static class Progress
+    public static class Progress
     {
         const string UnlockedKey = "cameli.proto.unlocked";
+        const string DevUnlockAllKey = "cameli.dev.unlockAll";
         const string LastPlayedKey = "cameli.proto.last";
         const string StarsKeyPrefix = "cameli.proto.stars.";
 
-        /// <summary>Highest stage index the player may open.</summary>
-        public static int Unlocked => PlayerPrefs.GetInt(UnlockedKey, 0);
+        /// <summary>Highest stage index the player may open; every stage while <see cref="DevUnlockAll"/> is on.</summary>
+        public static int Unlocked => DevUnlockAll ? int.MaxValue : SavedUnlocked;
+
+        static int SavedUnlocked => PlayerPrefs.GetInt(UnlockedKey, 0);
+
+        /// <summary>
+        /// Developer switch "모든 스테이지 열기" (menu "Cameli/개발: 모든 스테이지 열기"): every stage counts as unlocked
+        /// while it is on. Only honored in the editor and development builds, so a release build ignores a stray flag.
+        /// The saved unlock progress is kept and still advances on clears.
+        /// </summary>
+        public static bool DevUnlockAll
+        {
+            get => (Application.isEditor || Debug.isDebugBuild) && PlayerPrefs.GetInt(DevUnlockAllKey, 0) != 0;
+            set
+            {
+                PlayerPrefs.SetInt(DevUnlockAllKey, value ? 1 : 0);
+                PlayerPrefs.Save();
+            }
+        }
 
         public static int LastPlayed
         {
@@ -30,7 +48,7 @@ namespace Cameli.Game
 
         public static void RecordClear(int stageIndex, int stageId, int stars)
         {
-            if (stageIndex + 1 > Unlocked) PlayerPrefs.SetInt(UnlockedKey, stageIndex + 1);
+            if (stageIndex + 1 > SavedUnlocked) PlayerPrefs.SetInt(UnlockedKey, stageIndex + 1);
             if (stars > BestStars(stageId)) PlayerPrefs.SetInt(StarsKeyPrefix + stageId, stars);
             PlayerPrefs.Save();
         }
