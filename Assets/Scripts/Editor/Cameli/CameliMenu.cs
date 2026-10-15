@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using System.Text.RegularExpressions;
 using Cameli.Core;
 using Cameli.Game;
 using UnityEditor;
@@ -11,6 +12,7 @@ using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem.UI;
+using GameProgress = Cameli.Game.Progress; // UnityEditor.Progress has the same name
 
 namespace Cameli.EditorTools
 {
@@ -137,43 +139,167 @@ namespace Cameli.EditorTools
             return false;
         }
 
+        /// <summary>
+        /// Runs <see cref="StageAudit"/> (the same checks as <c>lab.sh check</c>) on every stage file. A wrong
+        /// optimalMoves is rewritten in place, touching only that number; everything else is reported, not fixed.
+        /// Logs one Console line per stage and shows a short summary dialog.
+        /// </summary>
         [MenuItem("Cameli/스테이지 검증")]
         static void ValidateStages()
         {
-            var problems = new StringBuilder();
-            int count = 0, failed = 0;
-            foreach (string guid in AssetDatabase.FindAssets("t:TextAsset", new[] { StageFolder }))
-            {
-                var asset = AssetDatabase.LoadAssetAtPath<TextAsset>(AssetDatabase.GUIDToAssetPath(guid));
-                count++;
-                string problem = Check(asset);
-                if (problem == null) continue;
-                failed++;
-                problems.AppendLine($"{asset.name}: {problem}");
-            }
-
-            string summary = failed == 0
-                ? $"스테이지 {count}개 모두 정상이에요."
-                : $"스테이지 {count}개 중 {failed}개에 문제가 있어요.\n{problems}";
-            if (failed == 0) Debug.Log(summary);
-            else Debug.LogError(summary);
-            EditorUtility.DisplayDialog("Cameli 스테이지 검증", summary, "확인");
-        }
-
-        static string Check(TextAsset asset)
-        {
+            string[] paths = Directory.GetFiles(StageFolder, "*.json");
+            Array.Sort(paths, StringComparer.Ordinal);
+            var problems = new List<string>();
+            var fixes = new List<string>();
+            var ids = new List<int>();
+            int failed = 0;
             try
             {
-                StageFile file = JsonUtility.FromJson<StageFile>(asset.text);
-                Solution solution = Solver.Solve(StageDefinition.FromFile(file));
-                if (solution == null) return "풀 수 없어요.";
-                if (solution.Moves != file.optimalMoves) return $"optimalMoves가 {file.optimalMoves}인데 실제 최단은 {solution.Moves}걸음이에요.";
-                return null;
+                for (int i = 0; i < paths.Length; i++)
+                {
+                    string name = Path.GetFileNameWithoutExtension(paths[i]);
+                    EditorUtility.DisplayProgressBar("Cameli 스테이지 검증", name, i / (float)paths.Length);
+                    List<string> found = CheckStage(paths[i], name, ids, fixes);
+                    if (found.Count == 0) continue;
+                    failed++;
+                    problems.Add($"{name}: {string.Join(", ", found)}");
+                }
             }
-            catch (Exception e) when (e is StageFormatException || e is ArgumentException)
+            finally
             {
-                return e.Message;
+                EditorUtility.ClearProgressBar();
             }
+
+            ids.Sort();
+            bool idsInOrder = true;
+            for (int i = 0; i < ids.Count; i++) idsInOrder &= ids[i] == i + 1;
+            if (!idsInOrder) problems.Add($"번호(id)가 1부터 빠짐없이 이어져야 해요. 지금: {string.Join(", ", ids)}");
+            if (fixes.Count > 0) AssetDatabase.Refresh();
+
+            var summary = new StringBuilder(failed > 0 ? $"스테이지 {paths.Length}개 중 {failed}개에 문제가 있어요."
+                : idsInOrder ? $"스테이지 {paths.Length}개 모두 통과했어요."
+                : $"스테이지 {paths.Length}개를 검사했어요. 번호에 문제가 있어요.");
+            if (fixes.Count > 0) summary.Append($"\n\noptimalMoves를 고친 스테이지 {fixes.Count}개:\n").Append(string.Join("\n", fixes));
+            if (problems.Count > 0) summary.Append("\n\n").Append(string.Join("\n", problems));
+            string text = summary.ToString();
+            if (problems.Count > 0) Debug.LogError(text);
+            else Debug.Log(text);
+
+            const int dialogLines = 25;
+            string[] lines = text.Split('\n');
+            if (lines.Length > dialogLines)
+                text = string.Join("\n", lines, 0, dialogLines) + $"\n… 외 {lines.Length - dialogLines}줄은 Console 창에서 확인해 주세요.";
+            EditorUtility.DisplayDialog("Cameli 스테이지 검증", text, "확인");
+        }
+
+        /// <summary>
+        /// Audits one stage file, logs its Console line, and returns its problems (empty when it passes). Fixes a
+        /// wrong optimalMoves in the file and records it in <paramref name="fixes"/>.
+        /// </summary>
+        static List<string> CheckStage(string path, string name, List<int> ids, List<string> fixes)
+        {
+            var problems = new List<string>();
+            StageReport report;
+            try
+            {
+                StageFile file = JsonUtility.FromJson<StageFile>(File.ReadAllText(path));
+                ids.Add(file.id);
+                report = StageAudit.Audit(file);
+            }
+            catch (Exception e) when (e is StageFormatException || e is ArgumentException || e is InvalidOperationException)
+            {
+                problems.Add($"형식 오류: {e.Message}");
+                Debug.LogError($"{name}  형식 오류: {e.Message}");
+                return problems;
+            }
+
+            string label = $"{report.Id,2}. {report.Title}";
+            if (!report.Solvable)
+            {
+                problems.Add("풀 수 없어요");
+                Debug.LogError($"{label}  풀 수 없어요 (목표 {report.Target})");
+                return problems;
+            }
+
+            string optimal = $"최단 {report.Optimal}";
+            if (report.OptimalMismatch)
+            {
+                if (RewriteOptimalMoves(path, report.Optimal))
+                {
+                    fixes.Add($"{name}: {report.StoredOptimal} → {report.Optimal}");
+                    optimal += $" (저장값 {report.StoredOptimal} → 고침)";
+                }
+                else
+                {
+                    problems.Add($"optimalMoves를 {report.Optimal}(으)로 직접 넣어 주세요");
+                    optimal += $" (저장값 {report.StoredOptimal}!)";
+                }
+            }
+
+            StageProblems flags = report.Problems;
+            if ((flags & StageProblems.NotExact) != 0) problems.Add("최단 풀이의 방울 수가 목표와 달라요");
+            if ((flags & StageProblems.GateNotExact) != 0) problems.Add("게이트를 정확한 레시피가 아닌 상태로 지나요");
+            if ((flags & StageProblems.GateSkippable) != 0) problems.Add("게이트 없이도 풀려요");
+            if ((flags & StageProblems.GateAsReset) != 0) problems.Add("최단 풀이가 게이트 너머가 아니라 시작 쪽에서 끝나요");
+            if ((flags & StageProblems.TargetAmbiguous) != 0)
+                problems.Add($"목표 {report.Target}와 헷갈림 ({report.TargetNearest}, ΔE {report.TargetDeltaE:F1})");
+            if ((flags & StageProblems.GateAmbiguous) != 0)
+            {
+                string[] pair = report.GateNearest.Split('~');
+                problems.Add($"게이트 {pair[0]}와 헷갈림 ({pair[1]}, ΔE {report.GateDeltaE:F1})");
+            }
+
+            string gate = report.GateUse switch
+            {
+                GateUse.Door => $"  게이트ΔE {report.GateDeltaE:F1} ({report.GateNearest.Replace("~", " vs ")})",
+                GateUse.Skippable => "  게이트 없어도 풀림",
+                GateUse.AsReset => "  게이트를 리셋으로 씀",
+                _ => "",
+            };
+            if (report.GateUse == GateUse.Door && report.GateAmbiguous) gate += "!";
+            string line = $"{label}  {report.Width}x{report.Height} {report.Colors} 목표 {report.Target}  {optimal}" +
+                $"  목표ΔE {report.TargetDeltaE:F1}{(report.TargetAmbiguous ? "!" : "")} ({report.TargetNearest}){gate}" +
+                $"  타일ΔE {report.TileDeltaE:F1}  무작위 {report.WalkClear * 100:F2}%  풀이 {report.OptimalSets}가지" +
+                (problems.Count == 0 ? "  통과" : $"  문제: {string.Join(", ", problems)}");
+            if (problems.Count == 0) Debug.Log(line);
+            else Debug.LogWarning(line);
+            return problems;
+        }
+
+        static readonly Regex OptimalMovesField = new Regex("(\"optimalMoves\"\\s*:\\s*)-?\\d+");
+
+        /// <summary>Replaces the number in the file's one "optimalMoves" field, keeping every other byte. False when there is no such field.</summary>
+        static bool RewriteOptimalMoves(string path, int optimal)
+        {
+            byte[] bytes = File.ReadAllBytes(path);
+            bool bom = bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF;
+            string text = File.ReadAllText(path);
+            if (OptimalMovesField.Matches(text).Count != 1) return false;
+            File.WriteAllText(path, OptimalMovesField.Replace(text, "${1}" + optimal), new UTF8Encoding(bom));
+            return true;
+        }
+
+        const string UnlockAllMenu = "Cameli/개발: 모든 스테이지 열기";
+
+        /// <summary>
+        /// Dev switch stored in PlayerPrefs (<see cref="GameProgress.DevUnlockAll"/>): every stage opens in the garden. Works
+        /// in the editor and development builds only; release builds ignore it.
+        /// </summary>
+        [MenuItem(UnlockAllMenu)]
+        static void ToggleUnlockAll()
+        {
+            GameProgress.DevUnlockAll = !GameProgress.DevUnlockAll;
+            Menu.SetChecked(UnlockAllMenu, GameProgress.DevUnlockAll);
+            Debug.Log(GameProgress.DevUnlockAll
+                ? "모든 스테이지 열기를 켰어요. 정원 화면을 다시 열면 잠긴 스테이지도 누를 수 있어요 (에디터와 개발 빌드에서만)."
+                : "모든 스테이지 열기를 껐어요. 저장된 진행만큼만 열려요.");
+        }
+
+        [MenuItem(UnlockAllMenu, true)]
+        static bool ToggleUnlockAllValidate()
+        {
+            Menu.SetChecked(UnlockAllMenu, GameProgress.DevUnlockAll);
+            return true;
         }
     }
 }
