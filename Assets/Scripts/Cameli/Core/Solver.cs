@@ -16,22 +16,69 @@ namespace Cameli.Core
         }
     }
 
+    /// <summary>How a bounded search ended.</summary>
+    public enum SearchResult
+    {
+        Found,
+
+        /// <summary>Every reachable state was explored without a clear.</summary>
+        Unsolvable,
+
+        /// <summary>The state cap was reached before the search finished; nothing is known.</summary>
+        LimitExceeded,
+    }
+
     /// <summary>
     /// Breadth-first search over board states using the same <see cref="Rules"/> as the game, so the
-    /// first clear found is a shortest one. Meant for tooling and tests, not for runtime use.
+    /// first clear found is a shortest one. Tooling and tests search whole stages; at runtime only
+    /// <see cref="Hints"/> uses it, from the current state and with a small state cap.
     /// </summary>
     public static class Solver
     {
+        public const int DefaultMaxStates = 2_000_000;
+
         /// <summary>Returns a shortest clear, or null if the stage cannot be cleared.</summary>
         /// <param name="maxDrops">
         /// States holding more drops than this are pruned. The default, the stage's largest recipe, loses
         /// nothing: an overfilled mix can neither clear nor pass a gate (see <see cref="Rules.IsOverfilled"/>).
         /// </param>
-        public static Solution Solve(StageDefinition stage, int maxDrops = 0, int maxStates = 2_000_000)
-        {
-            if (maxDrops <= 0) maxDrops = stage.MaxRecipeDrops;
+        /// <exception cref="InvalidOperationException">The search needed more than <paramref name="maxStates"/> states.</exception>
+        public static Solution Solve(StageDefinition stage, int maxDrops = 0, int maxStates = DefaultMaxStates) =>
+            Solve(stage, BoardState.Initial(stage), maxDrops, maxStates);
 
-            BoardState start = BoardState.Initial(stage);
+        /// <summary>
+        /// Returns a shortest clear starting from <paramref name="start"/>, or null if none exists. The path holds
+        /// only the moves after <paramref name="start"/>; a start that is already cleared gives an empty path.
+        /// </summary>
+        /// <exception cref="InvalidOperationException">The search needed more than <paramref name="maxStates"/> states.</exception>
+        public static Solution Solve(StageDefinition stage, BoardState start, int maxDrops = 0, int maxStates = DefaultMaxStates)
+        {
+            if (TrySolve(stage, start, out Solution solution, maxDrops, maxStates) == SearchResult.LimitExceeded)
+                throw new InvalidOperationException($"Stage {stage.Id}: search exceeded {maxStates} states.");
+            return solution;
+        }
+
+        /// <summary>
+        /// Like <see cref="Solve(StageDefinition, BoardState, int, int)"/>, but reports hitting the state cap as a
+        /// result instead of throwing, for runtime callers. <paramref name="solution"/> is set only when found.
+        /// </summary>
+        public static SearchResult TrySolve(StageDefinition stage, BoardState start, out Solution solution,
+            int maxDrops = 0, int maxStates = DefaultMaxStates) =>
+            Search(stage, start, maxDrops, maxStates, out solution, out _);
+
+        /// <summary>The search itself; <paramref name="explored"/> is how many states it stored, for callers sharing one budget.</summary>
+        internal static SearchResult Search(StageDefinition stage, BoardState start, int maxDrops, int maxStates,
+            out Solution solution, out int explored)
+        {
+            solution = null;
+            explored = 0;
+            if (maxDrops <= 0) maxDrops = stage.MaxRecipeDrops;
+            if (start.Cleared)
+            {
+                solution = new Solution(Array.Empty<Direction>(), start);
+                return SearchResult.Found;
+            }
+
             var nodes = new List<Node> { new Node(start, -1, Direction.Up) };
             var seen = new HashSet<Key> { new Key(start) };
 
@@ -42,15 +89,24 @@ namespace Cameli.Core
                 {
                     MoveOutcome outcome = Rules.Step(stage, current, direction, out BoardState next);
                     if (!outcome.IsMove() || next.Drops.Total > maxDrops) continue;
-                    if (outcome == MoveOutcome.Cleared) return BuildSolution(nodes, head, direction, next);
+                    if (outcome == MoveOutcome.Cleared)
+                    {
+                        solution = BuildSolution(nodes, head, direction, next);
+                        explored = nodes.Count;
+                        return SearchResult.Found;
+                    }
                     if (!seen.Add(new Key(next))) continue;
 
                     if (nodes.Count >= maxStates)
-                        throw new InvalidOperationException($"Stage {stage.Id}: search exceeded {maxStates} states.");
+                    {
+                        explored = nodes.Count;
+                        return SearchResult.LimitExceeded;
+                    }
                     nodes.Add(new Node(next, head, direction));
                 }
             }
-            return null;
+            explored = nodes.Count;
+            return SearchResult.Unsolvable;
         }
 
         static Solution BuildSolution(List<Node> nodes, int parent, Direction last, BoardState final)

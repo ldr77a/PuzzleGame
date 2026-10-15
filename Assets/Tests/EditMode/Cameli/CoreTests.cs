@@ -1,3 +1,4 @@
+using System.Linq;
 using Cameli.Core;
 using NUnit.Framework;
 
@@ -15,12 +16,29 @@ namespace Cameli.Tests
         /// </summary>
         public static StageDefinition Basic() => Make("YB", null, "R Y B", "Y S #", "B Y R");
 
+        /// <summary><see cref="Basic"/> with its optimum (2 moves) stored, so clears earn stars by moves.</summary>
+        public static StageDefinition BasicScored() => StageDefinition.FromFile(new StageFile
+        {
+            id = 1, rows = new[] { "R Y B", "Y S #", "B Y R" }, target = "YB", optimalMoves = 2,
+        });
+
         /// <summary>
         /// Y B R
         /// g0 S R     g0 = orange gate (red 1 + yellow 1)
         /// # Y #      target: yellow 1 + blue 1
         /// </summary>
         public static StageDefinition WithGate() => Make("YB", new[] { "RY" }, "Y B R", "g0 S R", "# Y #");
+
+        /// <summary>
+        /// R R B
+        /// # S B      target: red 1 + blue 1
+        /// # # #
+        /// </summary>
+        public static StageDefinition Ratio() => Make("RB", null, "R R B", "# S B", "# # #");
+
+        /// <summary>The layout of shipped stage 10 (5×5, orange gate used as a door), 7 moves at best.</summary>
+        public static StageDefinition Door() => Make("YB", new[] { "RY" },
+            "B R Y B Y", "R # g0 # R", "# B S R #", "B B R R Y", "B R Y R Y");
     }
 
     public class ColorMathTests
@@ -118,6 +136,48 @@ namespace Cameli.Tests
         {
             Assert.Throws<StageFormatException>(() => TestStages.Make("RX", null, "R R R", "R S R", "R R R"));
         }
+
+        static StageDefinition WithTutorial(int[] focus, string swipe) => StageDefinition.FromFile(new StageFile
+        {
+            id = 1, rows = new[] { "Y Y Y", "Y S R", "Y Y Y" }, target = "R", focus = focus, swipe = swipe,
+        });
+
+        [Test]
+        public void TutorialFieldsAreOptional()
+        {
+            StageDefinition stage = TestStages.Basic();
+            Assert.AreEqual(-1, stage.FocusIndex);
+            Assert.IsNull(stage.Swipe);
+
+            stage = WithTutorial(new int[0], "");
+            Assert.AreEqual(-1, stage.FocusIndex, "JsonUtility reads a missing array as empty");
+            Assert.IsNull(stage.Swipe);
+        }
+
+        [Test]
+        public void ParsesFocusAndSwipe()
+        {
+            StageDefinition stage = WithTutorial(new[] { 2, 1 }, "right");
+            Assert.AreEqual(5, stage.FocusIndex, "x = column, y = row from the top");
+            Assert.AreEqual(CellKind.Color, stage.CellAt(stage.FocusIndex).Kind);
+            Assert.AreEqual(Direction.Right, stage.Swipe);
+            Assert.AreEqual(Direction.Up, WithTutorial(null, "up").Swipe);
+        }
+
+        [Test]
+        public void RejectsFocusOutsideTheBoard()
+        {
+            Assert.Throws<StageFormatException>(() => WithTutorial(new[] { 3, 1 }, null));
+            Assert.Throws<StageFormatException>(() => WithTutorial(new[] { 0, -1 }, null));
+            Assert.Throws<StageFormatException>(() => WithTutorial(new[] { 1 }, null));
+        }
+
+        [Test]
+        public void RejectsUnknownSwipe()
+        {
+            Assert.Throws<StageFormatException>(() => WithTutorial(null, "north"));
+            Assert.Throws<StageFormatException>(() => WithTutorial(null, "Right"));
+        }
     }
 
     public class RulesTests
@@ -164,12 +224,7 @@ namespace Cameli.Tests
             Assert.AreEqual(MoveOutcome.AlreadyCleared, session.Move(Direction.Left));
         }
 
-        /// <summary>
-        /// R R B
-        /// # S B      target: red 1 + blue 1
-        /// # # #
-        /// </summary>
-        static StageDefinition RatioStage() => TestStages.Make("RB", null, "R R B", "# S B", "# # #");
+        static StageDefinition RatioStage() => TestStages.Ratio();
 
         [Test]
         public void ExactDropCountClears()
@@ -303,6 +358,79 @@ namespace Cameli.Tests
             Assert.AreEqual(2, Scoring.Stars(6, 4));
             Assert.AreEqual(1, Scoring.Stars(7, 4));
         }
+
+        [Test]
+        public void AssistedClearsEarnAtMostTwoStars()
+        {
+            Assert.AreEqual(3, Scoring.Stars(4, 4, false));
+            Assert.AreEqual(2, Scoring.Stars(4, 4, true));
+            Assert.AreEqual(2, Scoring.Stars(6, 4, true));
+            Assert.AreEqual(1, Scoring.Stars(7, 4, true));
+        }
+
+        [Test]
+        public void UndoCapsTheStars()
+        {
+            var session = new GameSession(TestStages.BasicScored());
+            Assert.IsFalse(session.Undo(), "nothing to undo yet");
+            Assert.IsFalse(session.UsedUndo, "a refused undo does not count");
+
+            session.Move(Direction.Left);
+            session.Undo();
+            Assert.IsTrue(session.UsedUndo);
+            session.Move(Direction.Up);
+            session.Move(Direction.Right);
+            Assert.AreEqual(2, session.State.Moves, "optimal after the undo");
+            Assert.AreEqual(2, session.Stars);
+        }
+
+        [Test]
+        public void StepHintCapsTheStars()
+        {
+            var session = new GameSession(TestStages.BasicScored());
+            session.MarkStepHint();
+            Assert.IsTrue(session.UsedStepHint);
+            Assert.IsTrue(session.Assisted);
+            session.Move(Direction.Up);
+            session.Move(Direction.Right);
+            Assert.AreEqual(2, session.Stars);
+        }
+
+        [Test]
+        public void StepHintAfterClearingIsIgnored()
+        {
+            var session = new GameSession(TestStages.BasicScored());
+            session.Move(Direction.Up);
+            session.Move(Direction.Right);
+            session.MarkStepHint();
+            Assert.IsFalse(session.UsedStepHint);
+            Assert.AreEqual(3, session.Stars);
+        }
+
+        [Test]
+        public void RestartForgetsAssists()
+        {
+            var session = new GameSession(TestStages.BasicScored());
+            session.Move(Direction.Left);
+            session.Undo();
+            session.MarkStepHint();
+            session.Restart();
+            Assert.IsFalse(session.UsedUndo);
+            Assert.IsFalse(session.UsedStepHint);
+            session.Move(Direction.Up);
+            session.Move(Direction.Right);
+            Assert.AreEqual(3, session.Stars);
+        }
+
+        [Test]
+        public void HistoryListsEarlierStatesMostRecentFirst()
+        {
+            var session = new GameSession(TestStages.Basic());
+            session.Move(Direction.Up);
+            session.Move(Direction.Down);
+            Assert.AreEqual(2, session.HistoryCount);
+            CollectionAssert.AreEqual(new[] { 1, session.Stage.StartIndex }, session.History.Select(s => s.Position).ToArray());
+        }
     }
 
     public class SolverTests
@@ -335,6 +463,124 @@ namespace Cameli.Tests
         public void ReportsUnsolvableStages()
         {
             Assert.IsNull(Solver.Solve(TestStages.Make("B", null, "R R R", "R S R", "R R R")));
+        }
+
+        [Test]
+        public void SolvesFromAGivenState()
+        {
+            var session = new GameSession(TestStages.Basic());
+            session.Move(Direction.Up);
+            Solution solution = Solver.Solve(session.Stage, session.State);
+            CollectionAssert.AreEqual(new[] { Direction.Right }, solution.Path, "only the moves after the given state");
+            Assert.AreEqual(2, solution.Final.Moves);
+        }
+
+        [Test]
+        public void ClearedStartNeedsNoMoves()
+        {
+            var session = new GameSession(TestStages.Basic());
+            session.Move(Direction.Up);
+            session.Move(Direction.Right);
+            Assert.AreEqual(0, Solver.Solve(session.Stage, session.State).Moves);
+        }
+
+        [Test]
+        public void ReportsTheStateCap()
+        {
+            StageDefinition stage = TestStages.Door();
+            Assert.AreEqual(SearchResult.LimitExceeded, Solver.TrySolve(stage, BoardState.Initial(stage), out Solution solution, maxStates: 5));
+            Assert.IsNull(solution);
+            Assert.Throws<System.InvalidOperationException>(() => Solver.Solve(stage, maxStates: 5));
+            Assert.AreEqual(SearchResult.Found, Solver.TrySolve(stage, BoardState.Initial(stage), out solution));
+            Assert.AreEqual(7, solution.Moves);
+        }
+    }
+
+    public class HintTests
+    {
+        [Test]
+        public void FollowingNextStepHintsClearsInTheOptimalMoves()
+        {
+            var session = new GameSession(TestStages.Door());
+            while (!session.IsCleared && session.State.Moves < 20)
+            {
+                Hint hint = Hints.Next(session);
+                Assert.AreEqual(HintKind.NextStep, hint.Kind);
+                Assert.IsTrue(session.Move(hint.Direction).IsMove());
+            }
+            Assert.IsTrue(session.IsCleared);
+            Assert.AreEqual(7, session.State.Moves);
+        }
+
+        [Test]
+        public void NextStepAfterAWrongTurnStillLeadsToAClear()
+        {
+            var session = new GameSession(TestStages.Basic());
+            session.Move(Direction.Down);
+            Hint hint = Hints.Next(session);
+            Assert.AreEqual(HintKind.NextStep, hint.Kind);
+            Assert.AreEqual(Direction.Left, hint.Direction, "yellow below the start, then the blue beside it");
+            Assert.AreEqual(MoveOutcome.Cleared, session.Move(hint.Direction));
+        }
+
+        [Test]
+        public void DeadEndReportsTheFewestUndos()
+        {
+            // Two reds leave no way to the target red 1 + blue 1; the state two moves back (one red) has one.
+            var session = new GameSession(TestStages.Ratio());
+            session.Move(Direction.Up);
+            session.Move(Direction.Left);
+            session.Move(Direction.Right);
+            Hint hint = Hints.Next(session);
+            Assert.AreEqual(HintKind.Stuck, hint.Kind);
+            Assert.AreEqual(2, hint.UndosNeeded);
+            Assert.IsTrue(hint.UndoWithinReach);
+
+            for (int i = 0; i < hint.UndosNeeded; i++) session.Undo();
+            Assert.AreEqual(HintKind.NextStep, Hints.Next(session).Kind);
+        }
+
+        [Test]
+        public void DeadEndBeyondTheRemainingUndosSaysRestart()
+        {
+            var session = new GameSession(TestStages.Ratio());
+            session.Move(Direction.Up);
+            session.Move(Direction.Left);
+            session.Move(Direction.Right);
+            session.Move(Direction.Left);
+            session.Undo();
+            session.Move(Direction.Left);
+            session.Undo();
+            Assert.AreEqual(1, session.UndosRemaining);
+            Hint hint = Hints.Next(session);
+            Assert.AreEqual(HintKind.Stuck, hint.Kind);
+            Assert.AreEqual(2, hint.UndosNeeded);
+            Assert.IsFalse(hint.UndoWithinReach);
+        }
+
+        [Test]
+        public void ClearedSessionNeedsNoHint()
+        {
+            var session = new GameSession(TestStages.Basic());
+            session.Move(Direction.Up);
+            session.Move(Direction.Right);
+            Assert.AreEqual(HintKind.AlreadyCleared, Hints.Next(session).Kind);
+        }
+
+        [Test]
+        public void SearchCapGivesNoHint()
+        {
+            var session = new GameSession(TestStages.Door());
+            Assert.AreEqual(HintKind.SearchLimit, Hints.Next(session, maxStates: 5).Kind);
+        }
+
+        [Test]
+        public void HintsDoNotChangeTheSession()
+        {
+            var session = new GameSession(TestStages.Door());
+            Hints.Next(session);
+            Assert.IsFalse(session.UsedStepHint);
+            Assert.AreEqual(0, session.State.Moves);
         }
     }
 }

@@ -8,5 +8,7 @@
     "Y Y Y"
   ],
   "target": "R",
-  "optimalMoves": 1
+  "optimalMoves": 1,
+  "focus": [2, 1],
+  "swipe": "right"
 }

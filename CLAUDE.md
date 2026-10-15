@@ -51,19 +51,21 @@ Phase 1 (the Unity prototype) is done on a separate git branch.
     - Clearing, and passing a gate, need the color (±2) **and** the exact drop count (`Rules.Meets`). Ratio multiples don't count.
     - `Rules.IsOverfilled` flags a mix with more drops than any recipe on the stage. The solver prunes those states.
     - A passed gate leaves the player standing on the gate cell. Stepping back out the same side with an empty mix is allowed by design, so stages must need the gate as a door; `lab.sh check` verifies this.
-  - `GameSession` adds undo (3 per attempt) and restart, which also refills the undos.
-  - `Solver` is a BFS for shortest clears, used by tooling and tests only, never at runtime.
+  - `GameSession` adds undo (3 per attempt) and restart, which also refills the undos. Using an undo or a "next step" hint caps the attempt at ★★ (`UsedUndo`, `UsedStepHint`, `Scoring.Stars(moves, optimal, assisted)`); restart clears both.
+  - `Solver` is a BFS for shortest clears, from the initial board or any `BoardState`. Tooling and tests run it unbounded; at runtime only `Hints.Next(session)` runs it, capped at `Hints.DefaultMaxStates` states.
   - Colors are `Rgb`/`DropCounts`. `ColorMath` reproduces the legacy `ColorMixer` math.
   - Keep this assembly free of UnityEngine so the harness can run it.
 - **`Game/` (Assembly-CSharp, namespace `Cameli.Game`)** is the prototype client:
   - `CameliGame` is the entry point on an empty GameObject. It builds the whole uGUI in code: no prefabs and no scene wiring.
   - `BoardView` positions cells with normalized anchors. `BoardInput` handles swipe and tap.
-  - `HudView` and `ClearPanel` are the UI. `SpriteFactory` generates the flat shapes. `StageLibrary` loads the stages. `Progress` stores progress in PlayerPrefs.
+  - `HudView` and `ClearPanel` are the UI. `SpriteFactory` generates the flat shapes and icons; `Blossoms` stacks them into camellias and buds, and `CameliFigure` into the temporary Cameli. `StageLibrary` loads the stages. `Progress` stores progress in PlayerPrefs.
+  - `Theme` holds the "동백 잎" colors and `Ui.Font` loads Jua from `Resources/Fonts/` (OFL). `Sfx` synthesizes the sound effects, `Haptics.Tap` vibrates (iOS plugin in `Assets/Plugins/iOS/`), and `Settings` stores the sound and vibration switches.
   - Playtest tools (Phase 1 only): holding the stage title for 2 s (`LongPress`) opens `PlaytestPanel`, which offers next tester / log summary. `PlaytestLog` appends one row per stage attempt to `persistentDataPath/playtest.csv`. The moderator's guide is `docs/플레이테스트 기록지.md`.
 - **Stage files** live in `Assets/Resources/CameliStages/stage_NN.json`, matching `StageFile` in `Core/Stage.cs`:
   - `rows`: space-separated tokens, top row first. Color letters are `R O Y G B N P`. `S` is the start (must be the center cell; on even sizes, the top-left of the central 2×2), `#` is a wall, `gN` is a gate.
   - `target`, `gates`: recipe strings such as `"RRY"`.
   - `optimalMoves`: from the solver.
+  - Optional tutorial fields: `focus` (`[x, y]`, column and row from the top; the cell glows before the first move) and `swipe` (`"up"`, `"down"`, `"left"`, `"right"`).
   - Ids must run 1..n.
 - **Editor menu `Cameli/`** (`Assets/Scripts/Editor/Cameli/CameliMenu.cs`):
   - Apply the mobile player settings.

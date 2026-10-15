@@ -9,8 +9,23 @@ namespace Cameli.Game
     {
         static Font font;
 
-        /// <summary>Unity's built-in dynamic font; missing glyphs (Korean) fall back to system fonts.</summary>
-        public static Font Font => font != null ? font : font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        /// <summary>Resources path of the game font, 주아 (Jua, OFL; license in the same folder).</summary>
+        const string FontResource = "Fonts/Jua-Regular";
+
+        /// <summary>
+        /// The game font, Jua. Falls back to Unity's built-in dynamic font if the file is missing (missing glyphs
+        /// such as Korean then fall back to system fonts). Jua has a single weight: avoid FontStyle.Bold on new
+        /// screens, it only fakes bold.
+        /// </summary>
+        public static Font Font
+        {
+            get
+            {
+                if (font == null) font = Resources.Load<Font>(FontResource);
+                if (font == null) font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+                return font;
+            }
+        }
 
         public static RectTransform NewRect(string name, Transform parent)
         {

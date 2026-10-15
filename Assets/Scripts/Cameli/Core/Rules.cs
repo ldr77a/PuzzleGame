@@ -1,3 +1,5 @@
+using System;
+
 namespace Cameli.Core
 {
     /// <summary>Immutable snapshot of a run. Small enough to copy freely (undo history, solver queue).</summary>
@@ -125,12 +127,22 @@ namespace Cameli.Core
         /// <summary>Extra moves over the optimum that still earn two stars.</summary>
         public const int TwoStarSlack = 2;
 
+        /// <summary>Most stars a clear can earn after using an undo or a "next step" hint in the same attempt.</summary>
+        public const int AssistedMaxStars = 2;
+
         /// <summary>3 = optimal moves, 2 = within optimal + 2, 1 = any clear.</summary>
         public static int Stars(int moves, int optimalMoves)
         {
             if (optimalMoves <= 0) return 1;
             if (moves <= optimalMoves) return 3;
             return moves <= optimalMoves + TwoStarSlack ? 2 : 1;
+        }
+
+        /// <summary>Same as <see cref="Stars(int, int)"/>, capped at <see cref="AssistedMaxStars"/> when <paramref name="assisted"/>.</summary>
+        public static int Stars(int moves, int optimalMoves, bool assisted)
+        {
+            int stars = Stars(moves, optimalMoves);
+            return assisted ? Math.Min(stars, AssistedMaxStars) : stars;
         }
     }
 }

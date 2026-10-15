@@ -30,6 +30,12 @@ namespace Cameli.Core
 
         /// <summary>Fewest moves to clear, from the solver. Used for stars.</summary>
         public int optimalMoves;
+
+        /// <summary>Tutorial: cell [x, y] (column, row from the top) that glows until the first move (optional).</summary>
+        public int[] focus;
+
+        /// <summary>Tutorial: "up", "down", "left" or "right"; a finger swipes that way from the start until the first move (optional).</summary>
+        public string swipe;
     }
 
     public sealed class StageFormatException : Exception
@@ -69,13 +75,20 @@ namespace Cameli.Core
         public Rgb TargetColor { get; }
         public int OptimalMoves { get; }
 
+        /// <summary>Tutorial cell to highlight before the first move, as a cell index; -1 for none.</summary>
+        public int FocusIndex { get; }
+
+        /// <summary>Tutorial swipe to show from the start cell before the first move; null for none.</summary>
+        public Direction? Swipe { get; }
+
         /// <summary>The largest drop count among the target and the gate recipes; any more can never be used.</summary>
         public int MaxRecipeDrops { get; }
 
         public int CellCount => cells.Length;
         public IReadOnlyList<GateDefinition> Gates => gates;
 
-        StageDefinition(StageFile file, int width, int height, Cell[] cells, int startIndex, DropCounts target, GateDefinition[] gates)
+        StageDefinition(StageFile file, int width, int height, Cell[] cells, int startIndex, DropCounts target, GateDefinition[] gates,
+            int focusIndex, Direction? swipe)
         {
             Id = file.id;
             Title = file.title ?? string.Empty;
@@ -88,6 +101,8 @@ namespace Cameli.Core
             TargetColor = ColorMath.Mix(target);
             OptimalMoves = file.optimalMoves;
             this.gates = gates;
+            FocusIndex = focusIndex;
+            Swipe = swipe;
             MaxRecipeDrops = target.Total;
             foreach (GateDefinition gate in gates) MaxRecipeDrops = Math.Max(MaxRecipeDrops, gate.Recipe.Total);
         }
@@ -140,7 +155,34 @@ namespace Cameli.Core
                 throw new StageFormatException($"{label}: start must be at column {center % width}, row {center / width}.");
 
             DropCounts target = ParseRecipe(file.target, label, "target");
-            return new StageDefinition(file, width, height, cells, start, target, gates);
+            int focus = ParseFocus(file.focus, width, height, label);
+            Direction? swipe = ParseSwipe(file.swipe, label);
+            return new StageDefinition(file, width, height, cells, start, target, gates, focus, swipe);
+        }
+
+        /// <summary>Missing or empty = no focus (JsonUtility reads a missing array as empty).</summary>
+        static int ParseFocus(int[] focus, int width, int height, string label)
+        {
+            if (focus == null || focus.Length == 0) return -1;
+            if (focus.Length != 2) throw new StageFormatException($"{label}: focus must be [x, y], got {focus.Length} number(s).");
+            int x = focus[0], y = focus[1];
+            if (x < 0 || x >= width || y < 0 || y >= height)
+                throw new StageFormatException($"{label}: focus ({x}, {y}) is outside the {width}x{height} board.");
+            return y * width + x;
+        }
+
+        static Direction? ParseSwipe(string swipe, string label)
+        {
+            switch (swipe)
+            {
+                case null:
+                case "": return null;
+                case "up": return Direction.Up;
+                case "down": return Direction.Down;
+                case "left": return Direction.Left;
+                case "right": return Direction.Right;
+            }
+            throw new StageFormatException($"{label}: swipe must be up, down, left or right, got \"{swipe}\".");
         }
 
         static string[] SplitRow(string row) =>
