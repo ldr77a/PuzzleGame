@@ -22,7 +22,8 @@ namespace Cameli.Game
         /// <summary>
         /// Developer switch "모든 스테이지 열기" (menu "Cameli/개발: 모든 스테이지 열기"): every stage counts as unlocked
         /// while it is on. Only honored in the editor and development builds, so a release build ignores a stray flag.
-        /// The saved unlock progress is kept and still advances on clears.
+        /// The saved unlock progress is kept, and only clears of stages it already opened move it forward (see
+        /// <see cref="RecordClear"/>), so turning the switch off leaves exactly the stages earned by playing.
         /// </summary>
         public static bool DevUnlockAll
         {
@@ -46,9 +47,13 @@ namespace Cameli.Game
 
         public static int BestStars(int stageId) => PlayerPrefs.GetInt(StarsKeyPrefix + stageId, 0);
 
+        /// <summary>
+        /// Opens the next stage only when <paramref name="stageIndex"/> was opened by saved progress, so a stage played
+        /// through <see cref="DevUnlockAll"/> doesn't unlock everything before it. Best stars are recorded either way.
+        /// </summary>
         public static void RecordClear(int stageIndex, int stageId, int stars)
         {
-            if (stageIndex + 1 > SavedUnlocked) PlayerPrefs.SetInt(UnlockedKey, stageIndex + 1);
+            if (stageIndex == SavedUnlocked) PlayerPrefs.SetInt(UnlockedKey, stageIndex + 1);
             if (stars > BestStars(stageId)) PlayerPrefs.SetInt(StarsKeyPrefix + stageId, stars);
             PlayerPrefs.Save();
         }

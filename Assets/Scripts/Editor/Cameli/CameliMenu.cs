@@ -142,7 +142,8 @@ namespace Cameli.EditorTools
         /// <summary>
         /// Runs <see cref="StageAudit"/> (the same checks as <c>lab.sh check</c>) on every stage file. A wrong
         /// optimalMoves is rewritten in place, touching only that number; everything else is reported, not fixed.
-        /// Logs one Console line per stage and shows a short summary dialog.
+        /// Logs one Console line per stage and shows a short summary dialog. Each file is checked on its own: a file
+        /// that cannot be read, parsed, audited, or rewritten is reported and the run goes on with the rest.
         /// </summary>
         [MenuItem("Cameli/스테이지 검증")]
         static void ValidateStages()
@@ -150,16 +151,30 @@ namespace Cameli.EditorTools
             string[] paths = Directory.GetFiles(StageFolder, "*.json");
             Array.Sort(paths, StringComparer.Ordinal);
             var problems = new List<string>();
+            var notes = new List<string>();
             var fixes = new List<string>();
             var ids = new List<int>();
-            int failed = 0;
+            int failed = 0, unread = 0;
             try
             {
                 for (int i = 0; i < paths.Length; i++)
                 {
                     string name = Path.GetFileNameWithoutExtension(paths[i]);
                     EditorUtility.DisplayProgressBar("Cameli 스테이지 검증", name, i / (float)paths.Length);
-                    List<string> found = CheckStage(paths[i], name, ids, fixes);
+                    List<string> found;
+                    bool read;
+                    try
+                    {
+                        found = CheckStage(paths[i], name, ids, fixes, notes, out read);
+                    }
+                    catch (Exception e)
+                    {
+                        // CheckStage reports its own errors; this only keeps an unexpected one from stopping the run.
+                        found = new List<string> { $"검사 중 오류: {e.GetType().Name}: {e.Message}" };
+                        read = true;
+                        Debug.LogException(e);
+                    }
+                    if (!read) unread++;
                     if (found.Count == 0) continue;
                     failed++;
                     problems.Add($"{name}: {string.Join(", ", found)}");
@@ -168,21 +183,31 @@ namespace Cameli.EditorTools
             finally
             {
                 EditorUtility.ClearProgressBar();
+                if (fixes.Count > 0) AssetDatabase.Refresh();
             }
 
-            ids.Sort();
             bool idsInOrder = true;
-            for (int i = 0; i < ids.Count; i++) idsInOrder &= ids[i] == i + 1;
-            if (!idsInOrder) problems.Add($"번호(id)가 1부터 빠짐없이 이어져야 해요. 지금: {string.Join(", ", ids)}");
-            if (fixes.Count > 0) AssetDatabase.Refresh();
+            if (unread > 0)
+            {
+                // A file that could not be read has no id, so checking the rest would report a gap that isn't there.
+                notes.Add($"읽지 못한 파일이 {unread}개 있어서 번호(id) 검사는 건너뛰었어요.");
+            }
+            else
+            {
+                ids.Sort();
+                for (int i = 0; i < ids.Count; i++) idsInOrder &= ids[i] == i + 1;
+                if (!idsInOrder) problems.Add($"번호(id)가 1부터 빠짐없이 이어져야 해요. 지금: {string.Join(", ", ids)}");
+            }
 
             var summary = new StringBuilder(failed > 0 ? $"스테이지 {paths.Length}개 중 {failed}개에 문제가 있어요."
                 : idsInOrder ? $"스테이지 {paths.Length}개 모두 통과했어요."
                 : $"스테이지 {paths.Length}개를 검사했어요. 번호에 문제가 있어요.");
             if (fixes.Count > 0) summary.Append($"\n\noptimalMoves를 고친 스테이지 {fixes.Count}개:\n").Append(string.Join("\n", fixes));
             if (problems.Count > 0) summary.Append("\n\n").Append(string.Join("\n", problems));
+            if (notes.Count > 0) summary.Append("\n\n참고:\n").Append(string.Join("\n", notes));
             string text = summary.ToString();
             if (problems.Count > 0) Debug.LogError(text);
+            else if (notes.Count > 0) Debug.LogWarning(text);
             else Debug.Log(text);
 
             const int dialogLines = 25;
@@ -192,46 +217,93 @@ namespace Cameli.EditorTools
             EditorUtility.DisplayDialog("Cameli 스테이지 검증", text, "확인");
         }
 
+        const string NotUtf8 = "파일 인코딩이 UTF-8이 아니에요 (편집기에서 UTF-8로 다시 저장해 주세요)";
+
         /// <summary>
         /// Audits one stage file, logs its Console line, and returns its problems (empty when it passes). Fixes a
-        /// wrong optimalMoves in the file and records it in <paramref name="fixes"/>.
+        /// wrong optimalMoves in the file and records it in <paramref name="fixes"/>; a file name that doesn't match
+        /// the id goes to <paramref name="notes"/> (a warning, not a problem). <paramref name="read"/> is false when
+        /// the file could not be read or parsed, so it has no id.
         /// </summary>
-        static List<string> CheckStage(string path, string name, List<int> ids, List<string> fixes)
+        static List<string> CheckStage(string path, string name, List<int> ids, List<string> fixes, List<string> notes, out bool read)
         {
             var problems = new List<string>();
+            read = false;
+            byte[] bytes;
+            try
+            {
+                bytes = File.ReadAllBytes(path);
+            }
+            catch (Exception e)
+            {
+                return Fail(problems, name, $"파일을 읽지 못했어요: {e.Message}");
+            }
+
+            bool bom = bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF;
+            string json = bom ? Encoding.UTF8.GetString(bytes, 3, bytes.Length - 3) : Encoding.UTF8.GetString(bytes);
+            bool utf8 = json.IndexOf('�') < 0; // invalid UTF-8 bytes decode to U+FFFD
+            if (!utf8) problems.Add(NotUtf8);
+
+            StageFile file;
+            try
+            {
+                file = JsonUtility.FromJson<StageFile>(json);
+            }
+            catch (Exception e)
+            {
+                return Fail(problems, name, $"JSON 형식 오류: {e.Message}");
+            }
+            if (file == null) return Fail(problems, name, "파일이 비어 있거나 JSON이 아니에요");
+            read = true;
+            ids.Add(file.id);
+            string expectedName = $"stage_{file.id:00}";
+            if (name != expectedName)
+            {
+                string note = $"{name}: 파일 이름이 id와 달라요 (id: {file.id}, 맞는 이름: {expectedName}.json)";
+                notes.Add(note);
+                Debug.LogWarning(note);
+            }
+
             StageReport report;
             try
             {
-                StageFile file = JsonUtility.FromJson<StageFile>(File.ReadAllText(path));
-                ids.Add(file.id);
                 report = StageAudit.Audit(file);
             }
-            catch (Exception e) when (e is StageFormatException || e is ArgumentException || e is InvalidOperationException)
+            catch (StageFormatException e)
             {
-                problems.Add($"형식 오류: {e.Message}");
-                Debug.LogError($"{name}  형식 오류: {e.Message}");
-                return problems;
+                return Fail(problems, name, $"형식 오류: {e.Message}");
+            }
+            catch (SearchLimitException)
+            {
+                return Fail(problems, name, "판이 너무 크거나 복잡해서 검사를 끝내지 못했어요. 에이전트에게 알려 주세요");
+            }
+            catch (Exception e)
+            {
+                return Fail(problems, name, $"검사 중 오류: {e.GetType().Name}: {e.Message}");
             }
 
             string label = $"{report.Id,2}. {report.Title}";
             if (!report.Solvable)
             {
                 problems.Add("풀 수 없어요");
-                Debug.LogError($"{label}  풀 수 없어요 (목표 {report.Target})");
+                Debug.LogError($"{label}  {string.Join(", ", problems)} (목표 {report.Target})");
                 return problems;
             }
 
             string optimal = $"최단 {report.Optimal}";
             if (report.OptimalMismatch)
             {
-                if (RewriteOptimalMoves(path, report.Optimal))
+                string failure = utf8
+                    ? RewriteOptimalMoves(path, json, bom, report.Optimal)
+                    : $"optimalMoves를 {report.Optimal}(으)로 직접 고쳐 주세요";
+                if (failure == null)
                 {
                     fixes.Add($"{name}: {report.StoredOptimal} → {report.Optimal}");
                     optimal += $" (저장값 {report.StoredOptimal} → 고침)";
                 }
                 else
                 {
-                    problems.Add($"optimalMoves를 {report.Optimal}(으)로 직접 넣어 주세요");
+                    problems.Add(failure);
                     optimal += $" (저장값 {report.StoredOptimal}!)";
                 }
             }
@@ -266,17 +338,39 @@ namespace Cameli.EditorTools
             return problems;
         }
 
-        static readonly Regex OptimalMovesField = new Regex("(\"optimalMoves\"\\s*:\\s*)-?\\d+");
-
-        /// <summary>Replaces the number in the file's one "optimalMoves" field, keeping every other byte. False when there is no such field.</summary>
-        static bool RewriteOptimalMoves(string path, int optimal)
+        /// <summary>Adds <paramref name="problem"/>, logs the file's problems as an error, and returns them.</summary>
+        static List<string> Fail(List<string> problems, string name, string problem)
         {
-            byte[] bytes = File.ReadAllBytes(path);
-            bool bom = bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF;
-            string text = File.ReadAllText(path);
-            if (OptimalMovesField.Matches(text).Count != 1) return false;
-            File.WriteAllText(path, OptimalMovesField.Replace(text, "${1}" + optimal), new UTF8Encoding(bom));
-            return true;
+            problems.Add(problem);
+            Debug.LogError($"{name}  {string.Join(", ", problems)}");
+            return problems;
+        }
+
+        static readonly Regex OptimalMovesKey = new Regex("\"optimalMoves\"\\s*:");
+
+        /// <summary>The field with an integer value: the digits must not run on into a decimal point or exponent ("7.5").</summary>
+        static readonly Regex OptimalMovesField = new Regex("(\"optimalMoves\"\\s*:\\s*)-?\\d+(?![\\d.eE])");
+
+        /// <summary>
+        /// Replaces the number in the file's one "optimalMoves" field, keeping every other byte. Returns null when
+        /// done, or the problem to report (field missing, duplicated, not an integer, or the file could not be written).
+        /// <paramref name="json"/> is the file's text, already checked to be valid UTF-8.
+        /// </summary>
+        static string RewriteOptimalMoves(string path, string json, bool bom, int optimal)
+        {
+            int keys = OptimalMovesKey.Matches(json).Count;
+            if (keys == 0) return $"optimalMoves 줄이 없어요. \"optimalMoves\": {optimal} 줄을 넣어 주세요";
+            if (keys > 1) return $"optimalMoves 줄이 {keys}개예요. 하나만 남기고 {optimal}(으)로 고쳐 주세요";
+            if (OptimalMovesField.Matches(json).Count != 1) return $"optimalMoves가 정수가 아니에요. {optimal}(으)로 고쳐 주세요";
+            try
+            {
+                File.WriteAllText(path, OptimalMovesField.Replace(json, "${1}" + optimal), new UTF8Encoding(bom));
+            }
+            catch (Exception e)
+            {
+                return $"파일을 고치지 못했어요 ({e.Message}). optimalMoves를 {optimal}(으)로 직접 고쳐 주세요";
+            }
+            return null;
         }
 
         const string UnlockAllMenu = "Cameli/개발: 모든 스테이지 열기";

@@ -579,7 +579,7 @@ namespace Cameli.Tests
             StageDefinition stage = TestStages.Door();
             Assert.AreEqual(SearchResult.LimitExceeded, Solver.TrySolve(stage, BoardState.Initial(stage), out Solution solution, maxStates: 5));
             Assert.IsNull(solution);
-            Assert.Throws<System.InvalidOperationException>(() => Solver.Solve(stage, maxStates: 5));
+            Assert.Throws<SearchLimitException>(() => Solver.Solve(stage, maxStates: 5));
             Assert.AreEqual(SearchResult.Found, Solver.TrySolve(stage, BoardState.Initial(stage), out solution));
             Assert.AreEqual(7, solution.Moves);
         }

@@ -16,6 +16,15 @@ namespace Cameli.Core
         }
     }
 
+    /// <summary>
+    /// <see cref="Solver.Solve(StageDefinition, int, int)"/> hit its state cap: the board is too big or complex to search,
+    /// which says nothing about whether it can be cleared.
+    /// </summary>
+    public sealed class SearchLimitException : InvalidOperationException
+    {
+        public SearchLimitException(string message) : base(message) { }
+    }
+
     /// <summary>How a bounded search ended.</summary>
     public enum SearchResult
     {
@@ -42,7 +51,7 @@ namespace Cameli.Core
         /// States holding more drops than this are pruned. The default, the stage's largest recipe, loses
         /// nothing: an overfilled mix can neither clear nor pass a gate (see <see cref="Rules.IsOverfilled"/>).
         /// </param>
-        /// <exception cref="InvalidOperationException">The search needed more than <paramref name="maxStates"/> states.</exception>
+        /// <exception cref="SearchLimitException">The search needed more than <paramref name="maxStates"/> states.</exception>
         public static Solution Solve(StageDefinition stage, int maxDrops = 0, int maxStates = DefaultMaxStates) =>
             Solve(stage, BoardState.Initial(stage), maxDrops, maxStates);
 
@@ -50,11 +59,11 @@ namespace Cameli.Core
         /// Returns a shortest clear starting from <paramref name="start"/>, or null if none exists. The path holds
         /// only the moves after <paramref name="start"/>; a start that is already cleared gives an empty path.
         /// </summary>
-        /// <exception cref="InvalidOperationException">The search needed more than <paramref name="maxStates"/> states.</exception>
+        /// <exception cref="SearchLimitException">The search needed more than <paramref name="maxStates"/> states.</exception>
         public static Solution Solve(StageDefinition stage, BoardState start, int maxDrops = 0, int maxStates = DefaultMaxStates)
         {
             if (TrySolve(stage, start, out Solution solution, maxDrops, maxStates) == SearchResult.LimitExceeded)
-                throw new InvalidOperationException($"Stage {stage.Id}: search exceeded {maxStates} states.");
+                throw new SearchLimitException($"Stage {stage.Id}: search exceeded {maxStates} states.");
             return solution;
         }
 

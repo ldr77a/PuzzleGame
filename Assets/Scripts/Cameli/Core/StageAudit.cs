@@ -134,6 +134,7 @@ namespace Cameli.Core
 
         /// <summary>Runs every check on <paramref name="file"/>.</summary>
         /// <exception cref="StageFormatException">The file is not a valid stage.</exception>
+        /// <exception cref="SearchLimitException">The board is too big or complex for the solver's state cap.</exception>
         public static StageReport Audit(StageFile file)
         {
             StageDefinition stage = StageDefinition.FromFile(file);

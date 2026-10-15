@@ -30,10 +30,28 @@ static class LevelLab
         Console.WriteLine("id  size  colors target  stored opt  optSets nearSets  ΔE(nearest)  gateΔE(gate~nearest)  tileΔE walk%  exact gate      title");
         foreach (string path in Directory.GetFiles(dir, "*.json").OrderBy(p => p))
         {
-            StageFile file = JsonSerializer.Deserialize<StageFile>(File.ReadAllText(path), Json);
+            // Each file is checked on its own: a broken one is reported as FAIL and the run goes on.
+            StageFile file;
             StageReport a;
-            try { a = StageAudit.Audit(file); }
+            try
+            {
+                file = JsonSerializer.Deserialize<StageFile>(File.ReadAllText(path), Json);
+                a = StageAudit.Audit(file);
+            }
             catch (StageFormatException e) { Console.WriteLine($"{Path.GetFileName(path)}: {e.Message}"); problems++; continue; }
+            catch (Exception e)
+            {
+                string reason = e switch
+                {
+                    JsonException => "invalid JSON",
+                    SearchLimitException => "too big to verify (solver state cap)",
+                    ArgumentNullException => "empty stage (JSON null)",
+                    _ => e.GetType().Name,
+                };
+                Console.WriteLine($"{Path.GetFileName(path)}: FAIL {reason}: {e.Message}");
+                problems++;
+                continue;
+            }
             if (!a.Solvable) { Console.WriteLine($"{file.id,2}  UNSOLVABLE"); problems++; continue; }
             bool mismatch = a.OptimalMismatch || !a.GatesExact;
             if (mismatch || !a.Exact) problems++;
