@@ -126,8 +126,8 @@ static class LevelLab
         if (order != null)
         {
             var o = order.Value;
-            Console.WriteLine($"ids: FAIL {o.id} is in {StageSections.All[o.section].Folder} but the lower id {o.previousId} is in " +
-                              $"{StageSections.All[o.previousSection].Folder}; ids must follow the folder order");
+            Console.WriteLine($"ids: FAIL {o.previousId} ({StageSections.All[o.previousSection].Folder}) and {o.id} " +
+                              $"({StageSections.All[o.section].Folder}) are out of folder order; ids must follow the folder order");
             problems++;
         }
         Console.WriteLine(problems == 0 ? "OK" : $"{problems} problem(s)");

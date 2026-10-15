@@ -210,8 +210,9 @@ namespace Cameli.EditorTools
             {
                 var o = order.Value;
                 idsOk = false;
-                problems.Add($"{o.id}번이 {StageSections.All[o.section].Folder}에 있는데, 앞 번호인 {o.previousId}번이 " +
-                             $"{StageSections.All[o.previousSection].Folder}에 있어요. 번호는 난이도 폴더 순서대로 이어져야 해요");
+                // Names both stages: the misplaced one may be either (moved forward or moved back).
+                problems.Add($"{o.previousId}번({StageSections.All[o.previousSection].Folder})과 {o.id}번({StageSections.All[o.section].Folder})의 " +
+                             "폴더 순서가 어긋나요. 번호는 난이도 폴더 순서대로 이어져야 해요");
             }
 
             var summary = new StringBuilder(failed > 0 ? $"스테이지 {paths.Length}개 중 {failed}개에 문제가 있어요."
