@@ -6,7 +6,10 @@ using UnityEngine;
 
 namespace Cameli.Game
 {
-    /// <summary>Loads the stage JSON files from Resources/CameliStages, ordered by id.</summary>
+    /// <summary>
+    /// Loads the stage JSON files from the difficulty folders under Resources/CameliStages
+    /// (<see cref="StageSections"/>), ordered by folder and then by id. Files outside those folders are not loaded.
+    /// </summary>
     public static class StageLibrary
     {
         public const string ResourceFolder = "CameliStages";
@@ -14,18 +17,24 @@ namespace Cameli.Game
         public static List<StageDefinition> LoadAll()
         {
             var stages = new List<StageDefinition>();
-            foreach (TextAsset asset in Resources.LoadAll<TextAsset>(ResourceFolder))
+            for (int section = 0; section < StageSections.All.Count; section++)
             {
-                try
+                string folder = $"{ResourceFolder}/{StageSections.All[section].Folder}";
+                foreach (TextAsset asset in Resources.LoadAll<TextAsset>(folder))
                 {
-                    stages.Add(StageDefinition.FromFile(JsonUtility.FromJson<StageFile>(asset.text)));
-                }
-                catch (Exception e) when (e is StageFormatException || e is ArgumentException)
-                {
-                    Debug.LogError($"Skipping stage file {asset.name}: {e.Message}");
+                    try
+                    {
+                        stages.Add(StageDefinition.FromFile(JsonUtility.FromJson<StageFile>(asset.text), section));
+                    }
+                    catch (Exception e) when (e is StageFormatException || e is ArgumentException)
+                    {
+                        Debug.LogError($"Skipping stage file {folder}/{asset.name}: {e.Message}");
+                    }
                 }
             }
-            stages.Sort((a, b) => a.Id.CompareTo(b.Id));
+            // The audit keeps folder order and id order the same; sorting by folder first keeps each section in one
+            // block in the garden even if they ever disagree.
+            stages.Sort((a, b) => a.Section != b.Section ? a.Section.CompareTo(b.Section) : a.Id.CompareTo(b.Id));
             return stages;
         }
     }

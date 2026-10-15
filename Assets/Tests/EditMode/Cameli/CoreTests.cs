@@ -851,4 +851,39 @@ namespace Cameli.Tests
             Assert.AreEqual("P # # # P", file.rows[1]);
         }
     }
+
+    public class StageSectionTests
+    {
+        [Test]
+        public void FoldersAreKnownInPlayOrder()
+        {
+            Assert.AreEqual(0, StageSections.IndexOf("0_Tutorial"));
+            Assert.AreEqual(3, StageSections.IndexOf("3_Hard"));
+            Assert.AreEqual(-1, StageSections.IndexOf("CameliStages"));
+            Assert.AreEqual(-1, StageSections.IndexOf("1_easy"), "folder names are case-sensitive, like Resources paths");
+        }
+
+        [Test]
+        public void IdsFollowingTheFoldersPass()
+        {
+            Assert.IsNull(StageSections.FirstOutOfOrder(new[] { (3, 1), (1, 0), (2, 0), (4, 1), (5, 2) }));
+            Assert.IsNull(StageSections.FirstOutOfOrder(new (int, int)[0]));
+        }
+
+        [Test]
+        public void ReportsTheFirstIdInAnEarlierFolder()
+        {
+            // id 3 is in 1_Easy but id 4 went back to 0_Tutorial.
+            var order = StageSections.FirstOutOfOrder(new[] { (1, 0), (2, 0), (3, 1), (4, 0), (5, 1) });
+            Assert.AreEqual((4, 0, 3, 1), order);
+        }
+
+        [Test]
+        public void FromFileKeepsTheSection()
+        {
+            var file = new StageFile { id = 1, rows = new[] { "R Y B", "Y S #", "B Y R" }, target = "YB" };
+            Assert.AreEqual(0, StageDefinition.FromFile(file).Section);
+            Assert.AreEqual(2, StageDefinition.FromFile(file, 2).Section);
+        }
+    }
 }

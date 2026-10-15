@@ -4,7 +4,7 @@ using System.Collections.Generic;
 namespace Cameli.Core
 {
     /// <summary>
-    /// JSON shape of a stage file in Resources/CameliStages. Field names are the JSON keys and stay
+    /// JSON shape of a stage file in Resources/CameliStages/&lt;difficulty folder&gt;. Field names are the JSON keys and stay
     /// compatible with UnityEngine.JsonUtility.
     /// </summary>
     [Serializable]
@@ -84,11 +84,14 @@ namespace Cameli.Core
         /// <summary>The largest drop count among the target and the gate recipes; any more can never be used.</summary>
         public int MaxRecipeDrops { get; }
 
+        /// <summary>Index in <see cref="StageSections.All"/>: the difficulty folder the stage file was loaded from.</summary>
+        public int Section { get; }
+
         public int CellCount => cells.Length;
         public IReadOnlyList<GateDefinition> Gates => gates;
 
         StageDefinition(StageFile file, int width, int height, Cell[] cells, int startIndex, DropCounts target, GateDefinition[] gates,
-            int focusIndex, Direction? swipe)
+            int focusIndex, Direction? swipe, int section)
         {
             Id = file.id;
             Title = file.title ?? string.Empty;
@@ -103,6 +106,7 @@ namespace Cameli.Core
             this.gates = gates;
             FocusIndex = focusIndex;
             Swipe = swipe;
+            Section = section;
             MaxRecipeDrops = target.Total;
             foreach (GateDefinition gate in gates) MaxRecipeDrops = Math.Max(MaxRecipeDrops, gate.Recipe.Total);
         }
@@ -116,7 +120,8 @@ namespace Cameli.Core
         /// </summary>
         public static int CenterIndex(int width, int height) => (height - 1) / 2 * width + (width - 1) / 2;
 
-        public static StageDefinition FromFile(StageFile file)
+        /// <param name="section">Index in <see cref="StageSections.All"/> of the folder the file came from.</param>
+        public static StageDefinition FromFile(StageFile file, int section = 0)
         {
             if (file == null) throw new ArgumentNullException(nameof(file));
             string label = $"Stage {file.id}";
@@ -158,7 +163,7 @@ namespace Cameli.Core
             int focus = ParseFocus(file.focus, width, height, cells, label);
             Direction? swipe = ParseSwipe(file.swipe, label);
             if (swipe.HasValue) CheckSwipe(swipe.Value, start, width, height, cells, label);
-            return new StageDefinition(file, width, height, cells, start, target, gates, focus, swipe);
+            return new StageDefinition(file, width, height, cells, start, target, gates, focus, swipe, section);
         }
 
         /// <summary>

@@ -1,6 +1,6 @@
 #!/bin/bash
 # Stage design helper built on Cameli.Core (same rules as the game).
-#   ./lab.sh check [dir]          analyze stage JSON files (default: Assets/Resources/CameliStages)
+#   ./lab.sh check [dir]          analyze the stage JSON files in dir's difficulty folders (default: Assets/Resources/CameliStages)
 #   ./lab.sh search key=value…    random-fill a template and print the best candidates
 #   ./lab.sh solve key=value…     print a shortest solution step by step: rows="…|…" target=RRB [gates=RY]
 # search keys: template="? ? ?|? S ?|? ? ?" colors=RYB target=RRB [gates=RY,YB] [randwalls=N]

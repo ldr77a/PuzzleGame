@@ -32,12 +32,6 @@ namespace Cameli.Game
         /// </summary>
         const float TapGuardSeconds = 0.25f;
 
-        /// <summary>First stage id of each section (design doc §5: 5 tutorial, 40 Easy, 50 Medium, 50 Hard).</summary>
-        static readonly (int firstId, string name)[] Sections =
-        {
-            (1, "튜토리얼"), (6, "Easy"), (46, "Medium"), (96, "Hard"),
-        };
-
         readonly List<Tile> tiles = new List<Tile>();
         List<StageDefinition> stages;
         Action<int> play;
@@ -133,13 +127,13 @@ namespace Cameli.Game
             int column = 0;
             for (int i = 0; i < stages.Count; i++)
             {
-                int s = SectionOf(stages[i].Id);
+                int s = stages[i].Section;
                 if (s != section)
                 {
                     if (column > 0) y += TileHeight + RowGap;
                     column = 0;
                     section = s;
-                    Text heading = Widgets.Label(content, "Section", Sections[s].name, 44, Theme.Muted, TextAnchor.LowerLeft);
+                    Text heading = Widgets.Label(content, "Section", StageSections.All[s].Name, 44, Theme.Muted, TextAnchor.LowerLeft);
                     Ui.TopStrip(heading.rectTransform, y, SectionHeight - 24f, SidePadding + 8f);
                     y += SectionHeight;
                 }
@@ -217,14 +211,6 @@ namespace Cameli.Game
             float y = tiles[index].Top - (view - TileHeight) / 2f;
             content.anchoredPosition = new Vector2(0f, Mathf.Clamp(y, 0f, max));
             scrolledHeight = view;
-        }
-
-        static int SectionOf(int id)
-        {
-            int section = 0;
-            for (int i = 0; i < Sections.Length; i++)
-                if (id >= Sections[i].firstId) section = i;
-            return section;
         }
 
         enum TileState

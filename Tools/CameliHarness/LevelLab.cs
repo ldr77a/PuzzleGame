@@ -6,7 +6,7 @@ using System.Text.Json;
 using Cameli.Core;
 
 // Level design helper built on Cameli.Core (same rules as the game).
-//   check  <dir>                 analyze every stage JSON in the folder
+//   check  <dir>                 analyze every stage JSON in the difficulty folders under <dir>
 //   search key=value ...         random-fill a template and list the best candidates
 //   solve  key=value ...         print a shortest solution step by step (rows=, target=, gates=)
 static class LevelLab
@@ -22,23 +22,59 @@ static class LevelLab
         return 2;
     }
 
-    /// <summary>Prints one line per stage from <see cref="StageAudit"/>; the Unity menu "Cameli/스테이지 검증" runs the same checks.</summary>
+    /// <summary>
+    /// Index in <see cref="StageSections.All"/> of the difficulty folder a stage file sits in (its first folder under
+    /// <paramref name="dir"/>), or -1 when it is outside them.
+    /// </summary>
+    static int SectionOf(string dir, string path)
+    {
+        string[] parts = Path.GetRelativePath(dir, path).Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        return parts.Length < 2 ? -1 : StageSections.IndexOf(parts[0]);
+    }
+
+    /// <summary>
+    /// Prints one line per stage from <see cref="StageAudit"/>, under a heading per difficulty folder, then checks
+    /// that ids run 1..n in folder order. The Unity menu "Cameli/스테이지 검증" runs the same checks.
+    /// </summary>
     static int Check(string dir)
     {
         int problems = 0;
+        var ids = new List<(int id, int section)>();
+        int unread = 0;
         Console.WriteLine($"ambiguity: nearest other same-drop recipe from board colors, CIELAB ΔE76; FAIL below {StageAudit.AmbiguityThreshold}");
         Console.WriteLine("id  size  colors target  stored opt  optSets nearSets  ΔE(nearest)  gateΔE(gate~nearest)  tileΔE walk%  exact gate      title");
-        foreach (string path in Directory.GetFiles(dir, "*.json").OrderBy(p => p))
+        // Folder order, then id order within a folder (stage_99 before stage_100); files outside the folders go last.
+        string[] paths = Directory.GetFiles(dir, "*.json", SearchOption.AllDirectories)
+            .OrderBy(p => SectionOf(dir, p) < 0 ? int.MaxValue : SectionOf(dir, p))
+            .ThenBy(p => Path.GetFileName(p).Length)
+            .ThenBy(p => Path.GetFileName(p), StringComparer.Ordinal)
+            .ToArray();
+        string heading = null;
+        foreach (string path in paths)
         {
+            int section = SectionOf(dir, path);
+            string folder = section < 0 ? "(outside the difficulty folders)" : StageSections.All[section].Folder;
+            if (folder != heading) Console.WriteLine($"-- {heading = folder}");
+            if (section < 0)
+            {
+                Console.WriteLine($"{Path.GetRelativePath(dir, path)}: FAIL not in a difficulty folder ({StageSections.FolderList}); the game won't load it");
+                problems++;
+            }
             // Each file is checked on its own: a broken one is reported as FAIL and the run goes on.
-            StageFile file;
+            StageFile file = null;
             StageReport a;
             try
             {
                 file = JsonSerializer.Deserialize<StageFile>(File.ReadAllText(path), Json);
                 a = StageAudit.Audit(file);
             }
-            catch (StageFormatException e) { Console.WriteLine($"{Path.GetFileName(path)}: {e.Message}"); problems++; continue; }
+            catch (StageFormatException e)
+            {
+                Console.WriteLine($"{Path.GetFileName(path)}: {e.Message}");
+                problems++;
+                if (file != null) ids.Add((file.id, section));
+                continue;
+            }
             catch (Exception e)
             {
                 string reason = e switch
@@ -50,8 +86,11 @@ static class LevelLab
                 };
                 Console.WriteLine($"{Path.GetFileName(path)}: FAIL {reason}: {e.Message}");
                 problems++;
+                if (file != null) ids.Add((file.id, section));
+                else unread++;
                 continue;
             }
+            ids.Add((file.id, section));
             if (!a.Solvable) { Console.WriteLine($"{file.id,2}  UNSOLVABLE"); problems++; continue; }
             bool mismatch = a.OptimalMismatch || !a.GatesExact;
             if (mismatch || !a.Exact) problems++;
@@ -69,6 +108,27 @@ static class LevelLab
             Console.WriteLine($"{file.id,2}  {file.rows.Length}x{file.rows.Length}  {a.Colors,-6} {file.target,-6}  {file.optimalMoves,6} {a.Optimal,3}{(mismatch ? "!" : " ")}  {a.OptimalSets,7} {a.NearSets,8}  {targetDe,-12} {gateDe,-21} {a.TileDeltaE,6:F1} {a.WalkClear * 100,5:F2}  {(a.Exact ? "yes" : "NO"),-5} {gate,-9} {file.title}");
             if (a.TargetAmbiguous) Console.WriteLine($"    AMBIGUOUS target {file.target}: {a.TargetNearest} is only ΔE {a.TargetDeltaE:F1} away");
             if (a.GateAmbiguous) Console.WriteLine($"    AMBIGUOUS gate {a.GateNearest.Replace("~", ": ")} is only ΔE {a.GateDeltaE:F1} away");
+        }
+        if (unread > 0)
+        {
+            Console.WriteLine($"ids: skipped the 1..n check, {unread} file(s) could not be read");
+        }
+        else
+        {
+            List<int> sorted = ids.Select(s => s.id).OrderBy(id => id).ToList();
+            if (!sorted.SequenceEqual(Enumerable.Range(1, sorted.Count)))
+            {
+                Console.WriteLine($"ids: FAIL must run 1..n without gaps or repeats: {string.Join(", ", sorted)}");
+                problems++;
+            }
+        }
+        var order = StageSections.FirstOutOfOrder(ids.Where(s => s.section >= 0));
+        if (order != null)
+        {
+            var o = order.Value;
+            Console.WriteLine($"ids: FAIL {o.id} is in {StageSections.All[o.section].Folder} but the lower id {o.previousId} is in " +
+                              $"{StageSections.All[o.previousSection].Folder}; ids must follow the folder order");
+            problems++;
         }
         Console.WriteLine(problems == 0 ? "OK" : $"{problems} problem(s)");
         return problems == 0 ? 0 : 1;

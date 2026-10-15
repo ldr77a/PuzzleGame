@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using Cameli.Core;
@@ -140,20 +141,26 @@ namespace Cameli.EditorTools
         }
 
         /// <summary>
-        /// Runs <see cref="StageAudit"/> (the same checks as <c>lab.sh check</c>) on every stage file. A wrong
-        /// optimalMoves is rewritten in place, touching only that number; everything else is reported, not fixed.
+        /// Runs <see cref="StageAudit"/> (the same checks as <c>lab.sh check</c>) on every stage file, in every
+        /// difficulty folder. A wrong optimalMoves is rewritten in place, touching only that number; everything else
+        /// (including a file outside the difficulty folders, or ids out of folder order) is reported, not fixed.
         /// Logs one Console line per stage and shows a short summary dialog. Each file is checked on its own: a file
         /// that cannot be read, parsed, audited, or rewritten is reported and the run goes on with the rest.
         /// </summary>
         [MenuItem("Cameli/스테이지 검증")]
         static void ValidateStages()
         {
-            string[] paths = Directory.GetFiles(StageFolder, "*.json");
-            Array.Sort(paths, StringComparer.Ordinal);
+            // Folder order, then id order within a folder (stage_9 before stage_10, stage_99 before stage_100);
+            // files outside the difficulty folders go last.
+            string[] paths = Directory.GetFiles(StageFolder, "*.json", SearchOption.AllDirectories)
+                .OrderBy(p => SectionOf(p) < 0 ? int.MaxValue : SectionOf(p))
+                .ThenBy(p => Path.GetFileName(p).Length)
+                .ThenBy(p => Path.GetFileName(p), StringComparer.Ordinal)
+                .ToArray();
             var problems = new List<string>();
             var notes = new List<string>();
             var fixes = new List<string>();
-            var ids = new List<int>();
+            var ids = new List<(int id, int section)>();
             int failed = 0, unread = 0;
             try
             {
@@ -165,7 +172,7 @@ namespace Cameli.EditorTools
                     bool read;
                     try
                     {
-                        found = CheckStage(paths[i], name, ids, fixes, notes, out read);
+                        found = CheckStage(paths[i], name, SectionOf(paths[i]), ids, fixes, notes, out read);
                     }
                     catch (Exception e)
                     {
@@ -186,21 +193,29 @@ namespace Cameli.EditorTools
                 if (fixes.Count > 0) AssetDatabase.Refresh();
             }
 
-            bool idsInOrder = true;
+            bool idsOk = true;
             if (unread > 0)
             {
                 // A file that could not be read has no id, so checking the rest would report a gap that isn't there.
-                notes.Add($"읽지 못한 파일이 {unread}개 있어서 번호(id) 검사는 건너뛰었어요.");
+                notes.Add($"읽지 못한 파일이 {unread}개 있어서 번호(id)가 빠짐없이 이어지는지는 검사하지 않았어요.");
             }
             else
             {
-                ids.Sort();
-                for (int i = 0; i < ids.Count; i++) idsInOrder &= ids[i] == i + 1;
-                if (!idsInOrder) problems.Add($"번호(id)가 1부터 빠짐없이 이어져야 해요. 지금: {string.Join(", ", ids)}");
+                List<int> sorted = ids.Select(s => s.id).OrderBy(id => id).ToList();
+                for (int i = 0; i < sorted.Count; i++) idsOk &= sorted[i] == i + 1;
+                if (!idsOk) problems.Add($"번호(id)가 1부터 빠짐없이 이어져야 해요. 지금: {string.Join(", ", sorted)}");
+            }
+            var order = StageSections.FirstOutOfOrder(ids.Where(s => s.section >= 0));
+            if (order != null)
+            {
+                var o = order.Value;
+                idsOk = false;
+                problems.Add($"{o.id}번이 {StageSections.All[o.section].Folder}에 있는데, 앞 번호인 {o.previousId}번이 " +
+                             $"{StageSections.All[o.previousSection].Folder}에 있어요. 번호는 난이도 폴더 순서대로 이어져야 해요");
             }
 
             var summary = new StringBuilder(failed > 0 ? $"스테이지 {paths.Length}개 중 {failed}개에 문제가 있어요."
-                : idsInOrder ? $"스테이지 {paths.Length}개 모두 통과했어요."
+                : idsOk ? $"스테이지 {paths.Length}개 모두 통과했어요."
                 : $"스테이지 {paths.Length}개를 검사했어요. 번호에 문제가 있어요.");
             if (fixes.Count > 0) summary.Append($"\n\noptimalMoves를 고친 스테이지 {fixes.Count}개:\n").Append(string.Join("\n", fixes));
             if (problems.Count > 0) summary.Append("\n\n").Append(string.Join("\n", problems));
@@ -217,18 +232,32 @@ namespace Cameli.EditorTools
             EditorUtility.DisplayDialog("Cameli 스테이지 검증", text, "확인");
         }
 
+        /// <summary>
+        /// Index in <see cref="StageSections.All"/> of the difficulty folder a stage file sits in (its first folder
+        /// under the stage folder, like the game's per-folder loading), or -1 when it is outside them.
+        /// </summary>
+        static int SectionOf(string path)
+        {
+            string rest = path.Substring(StageFolder.Length + 1).Replace('\\', '/');
+            int slash = rest.IndexOf('/');
+            return slash < 0 ? -1 : StageSections.IndexOf(rest.Substring(0, slash));
+        }
+
         const string NotUtf8 = "파일 인코딩이 UTF-8이 아니에요 (편집기에서 UTF-8로 다시 저장해 주세요)";
 
         /// <summary>
         /// Audits one stage file, logs its Console line, and returns its problems (empty when it passes). Fixes a
         /// wrong optimalMoves in the file and records it in <paramref name="fixes"/>; a file name that doesn't match
         /// the id goes to <paramref name="notes"/> (a warning, not a problem). <paramref name="read"/> is false when
-        /// the file could not be read or parsed, so it has no id.
+        /// the file could not be read or parsed, so it has no id. <paramref name="section"/> is the file's difficulty
+        /// folder (<see cref="SectionOf"/>); a file outside them is a problem, since the game never loads it.
         /// </summary>
-        static List<string> CheckStage(string path, string name, List<int> ids, List<string> fixes, List<string> notes, out bool read)
+        static List<string> CheckStage(string path, string name, int section, List<(int id, int section)> ids, List<string> fixes,
+            List<string> notes, out bool read)
         {
             var problems = new List<string>();
             read = false;
+            if (section < 0) problems.Add($"난이도 폴더({StageSections.FolderList}) 밖에 있어서 게임에 나오지 않아요");
             byte[] bytes;
             try
             {
@@ -255,7 +284,7 @@ namespace Cameli.EditorTools
             }
             if (file == null) return Fail(problems, name, "파일이 비어 있거나 JSON이 아니에요");
             read = true;
-            ids.Add(file.id);
+            ids.Add((file.id, section));
             string expectedName = $"stage_{file.id:00}";
             if (name != expectedName)
             {
