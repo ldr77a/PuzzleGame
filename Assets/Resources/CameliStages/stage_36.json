@@ -1,0 +1,13 @@
+{
+  "id": 36,
+  "title": "담장 너머",
+  "hint": "",
+  "rows": [
+    "G P G #",
+    "G S G P",
+    "P R R G",
+    "# R # G"
+  ],
+  "target": "RGPPP",
+  "optimalMoves": 8
+}

@@ -1,17 +1,12 @@
 {
   "id": 12,
-  "title": "청록 문",
+  "title": "작은 화분",
   "hint": "",
   "rows": [
-    "G G # G G",
-    "P P g0 B B",
-    "# # S P B",
-    "P B B B G",
-    "B B P P B"
+    "P G O",
+    "P S P",
+    "O # #"
   ],
-  "target": "GP",
-  "gates": [
-    "GBB"
-  ],
-  "optimalMoves": 9
+  "target": "OOGP",
+  "optimalMoves": 6
 }

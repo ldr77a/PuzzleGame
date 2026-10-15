@@ -1,0 +1,13 @@
+{
+  "id": 37,
+  "title": "동백 그늘",
+  "hint": "",
+  "rows": [
+    "# P G P",
+    "P S P N",
+    "P G P #",
+    "P N P N"
+  ],
+  "target": "GGNNP",
+  "optimalMoves": 8
+}

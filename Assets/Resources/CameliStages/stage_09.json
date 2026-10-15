@@ -1,13 +1,12 @@
 {
   "id": 9,
-  "title": "막다른 길",
+  "title": "꽃봉오리",
   "hint": "",
   "rows": [
-    "G R # P",
-    "G S P R",
-    "R # P R",
-    "G R P G"
+    "R G #",
+    "G S R",
+    "R O O"
   ],
-  "target": "GGPP",
-  "optimalMoves": 6
+  "target": "OGG",
+  "optimalMoves": 5
 }

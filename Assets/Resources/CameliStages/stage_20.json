@@ -1,0 +1,13 @@
+{
+  "id": 20,
+  "title": "낮잠",
+  "hint": "",
+  "rows": [
+    "O P P P",
+    "O S O N",
+    "P N O O",
+    "N P # N"
+  ],
+  "target": "ONN",
+  "optimalMoves": 4
+}

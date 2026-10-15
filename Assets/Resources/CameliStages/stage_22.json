@@ -1,0 +1,13 @@
+{
+  "id": 22,
+  "title": "동백 울타리",
+  "hint": "",
+  "rows": [
+    "B N Y N",
+    "B S B B",
+    "N N B #",
+    "B Y B #"
+  ],
+  "target": "YYBN",
+  "optimalMoves": 6
+}

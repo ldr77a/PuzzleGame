@@ -1,0 +1,17 @@
+{
+  "id": 48,
+  "title": "청록 문",
+  "hint": "",
+  "rows": [
+    "G G # G G",
+    "P P g0 B B",
+    "# # S P B",
+    "P B B B G",
+    "B B P P B"
+  ],
+  "target": "GP",
+  "gates": [
+    "GBB"
+  ],
+  "optimalMoves": 9
+}

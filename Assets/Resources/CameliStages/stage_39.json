@@ -1,0 +1,13 @@
+{
+  "id": 39,
+  "title": "꽃 시계",
+  "hint": "",
+  "rows": [
+    "# P O #",
+    "G S G P",
+    "P P P P",
+    "# O P P"
+  ],
+  "target": "OOGGP",
+  "optimalMoves": 8
+}

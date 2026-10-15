@@ -1,0 +1,13 @@
+{
+  "id": 31,
+  "title": "비 온 뒤",
+  "hint": "",
+  "rows": [
+    "# R B N",
+    "N S R N",
+    "N B R B",
+    "# R # N"
+  ],
+  "target": "RBBBN",
+  "optimalMoves": 7
+}

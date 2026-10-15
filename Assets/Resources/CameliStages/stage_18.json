@@ -1,0 +1,13 @@
+{
+  "id": 18,
+  "title": "새싹",
+  "hint": "",
+  "rows": [
+    "P P P #",
+    "Y S R R",
+    "P P R R",
+    "# P Y P"
+  ],
+  "target": "RYYP",
+  "optimalMoves": 5
+}

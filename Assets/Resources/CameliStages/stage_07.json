@@ -1,13 +1,12 @@
 {
   "id": 7,
-  "title": "갈림길",
-  "hint": "",
+  "title": "벽",
+  "hint": "짙은 회색 칸은 벽이에요. 지나갈 수 없어요.",
   "rows": [
-    "B O B B",
-    "O S N B",
-    "B # N B",
-    "O N O N"
+    "G R #",
+    "N S N",
+    "N G R"
   ],
-  "target": "OON",
-  "optimalMoves": 5
+  "target": "GGN",
+  "optimalMoves": 4
 }

@@ -1,0 +1,13 @@
+{
+  "id": 28,
+  "title": "덩굴 숲",
+  "hint": "",
+  "rows": [
+    "B G B G",
+    "B S G P",
+    "G G G G",
+    "P G # #"
+  ],
+  "target": "GGBPP",
+  "optimalMoves": 7
+}

@@ -1,0 +1,13 @@
+{
+  "id": 32,
+  "title": "꽃 미로",
+  "hint": "",
+  "rows": [
+    "N N Y N",
+    "N S Y P",
+    "N N N N",
+    "N P # #"
+  ],
+  "target": "YYNPP",
+  "optimalMoves": 8
+}

@@ -1,0 +1,13 @@
+{
+  "id": 24,
+  "title": "오솔길",
+  "hint": "",
+  "rows": [
+    "P Y P Y",
+    "O S Y #",
+    "P Y P O",
+    "P # Y Y"
+  ],
+  "target": "OYYY",
+  "optimalMoves": 7
+}

@@ -1,0 +1,12 @@
+{
+  "id": 14,
+  "title": "네 갈래",
+  "hint": "",
+  "rows": [
+    "# Y R",
+    "O S Y",
+    "R O #"
+  ],
+  "target": "OOYY",
+  "optimalMoves": 7
+}

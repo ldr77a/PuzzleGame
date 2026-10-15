@@ -1,17 +1,12 @@
 {
   "id": 11,
-  "title": "초록 문",
+  "title": "이슬방울",
   "hint": "",
   "rows": [
-    "B N Y Y Y",
-    "N # g0 # N",
-    "# N S N #",
-    "B Y B N Y",
-    "N B N B B"
+    "N R N",
+    "B S N",
+    "R B #"
   ],
-  "target": "YYN",
-  "gates": [
-    "YB"
-  ],
-  "optimalMoves": 9
+  "target": "RRBB",
+  "optimalMoves": 5
 }

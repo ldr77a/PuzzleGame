@@ -1,0 +1,12 @@
+{
+  "id": 15,
+  "title": "봄바람",
+  "hint": "",
+  "rows": [
+    "Y N #",
+    "O S O",
+    "O Y N"
+  ],
+  "target": "OYY",
+  "optimalMoves": 4
+}

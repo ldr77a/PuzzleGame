@@ -1,17 +1,12 @@
 {
   "id": 13,
-  "title": "구석 정원",
+  "title": "돌아가는 길",
   "hint": "",
   "rows": [
-    "P O # O P",
-    "N N g0 O N",
-    "# # S P O",
-    "P O O O O",
-    "N N O P P"
+    "# G B",
+    "# S B",
+    "B G N"
   ],
-  "target": "ONN",
-  "gates": [
-    "OPP"
-  ],
-  "optimalMoves": 11
+  "target": "GBBB",
+  "optimalMoves": 6
 }

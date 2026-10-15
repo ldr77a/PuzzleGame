@@ -1,0 +1,13 @@
+{
+  "id": 34,
+  "title": "이끼 돌",
+  "hint": "",
+  "rows": [
+    "B G N #",
+    "B S N G",
+    "G N B B",
+    "N # # #"
+  ],
+  "target": "GGGBN",
+  "optimalMoves": 8
+}

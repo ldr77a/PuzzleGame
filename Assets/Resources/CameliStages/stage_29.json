@@ -1,0 +1,13 @@
+{
+  "id": 29,
+  "title": "숨은 꽃",
+  "hint": "",
+  "rows": [
+    "N Y N R",
+    "R S N Y",
+    "R R R #",
+    "# Y N #"
+  ],
+  "target": "RYYYN",
+  "optimalMoves": 8
+}

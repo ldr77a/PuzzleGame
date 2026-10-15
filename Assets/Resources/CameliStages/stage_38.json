@@ -1,0 +1,13 @@
+{
+  "id": 38,
+  "title": "깊은 숲",
+  "hint": "",
+  "rows": [
+    "Y R Y #",
+    "R S B #",
+    "B R R #",
+    "R B # B"
+  ],
+  "target": "RYBBB",
+  "optimalMoves": 8
+}

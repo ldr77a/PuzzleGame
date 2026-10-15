@@ -1,17 +1,12 @@
 {
   "id": 10,
-  "title": "동백꽃 문",
-  "hint": "문 안의 점을 섞은 색이면 열려요. 지나가면 문이 색을 가져가요.",
+  "title": "햇살 한 줌",
+  "hint": "",
   "rows": [
-    "P P P B O",
-    "P # g0 # P",
-    "# B S B #",
-    "P O O B O",
-    "B P P B O"
+    "N P P",
+    "P S N",
+    "P Y N"
   ],
-  "target": "BP",
-  "gates": [
-    "OP"
-  ],
-  "optimalMoves": 7
+  "target": "YNN",
+  "optimalMoves": 3
 }

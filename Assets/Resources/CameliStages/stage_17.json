@@ -1,0 +1,13 @@
+{
+  "id": 17,
+  "title": "갈림길",
+  "hint": "",
+  "rows": [
+    "B O B B",
+    "O S N B",
+    "B # N B",
+    "O N O N"
+  ],
+  "target": "OON",
+  "optimalMoves": 5
+}

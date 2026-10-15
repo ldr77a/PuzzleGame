@@ -1,0 +1,13 @@
+{
+  "id": 30,
+  "title": "물뿌리개",
+  "hint": "",
+  "rows": [
+    "N N # G",
+    "O S G N",
+    "N O N G",
+    "O # N G"
+  ],
+  "target": "OOG",
+  "optimalMoves": 5
+}

@@ -1,0 +1,13 @@
+{
+  "id": 21,
+  "title": "막다른 길",
+  "hint": "",
+  "rows": [
+    "G R # P",
+    "G S P R",
+    "R # P R",
+    "G R P G"
+  ],
+  "target": "GGPP",
+  "optimalMoves": 6
+}

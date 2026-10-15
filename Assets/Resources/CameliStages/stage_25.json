@@ -1,0 +1,13 @@
+{
+  "id": 25,
+  "title": "나비 쉼터",
+  "hint": "",
+  "rows": [
+    "B R B P",
+    "B S P B",
+    "# R B P",
+    "P B B R"
+  ],
+  "target": "RRP",
+  "optimalMoves": 5
+}

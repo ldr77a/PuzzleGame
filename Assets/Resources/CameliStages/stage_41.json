@@ -1,0 +1,13 @@
+{
+  "id": 41,
+  "title": "구불구불",
+  "hint": "",
+  "rows": [
+    "# O G R",
+    "O S O G",
+    "# R O R",
+    "O G R #"
+  ],
+  "target": "ROGGG",
+  "optimalMoves": 8
+}

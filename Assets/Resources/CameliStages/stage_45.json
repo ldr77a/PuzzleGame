@@ -1,0 +1,13 @@
+{
+  "id": 45,
+  "title": "동백 언덕",
+  "hint": "",
+  "rows": [
+    "Y P R #",
+    "R S Y R",
+    "P R P #",
+    "# Y P #"
+  ],
+  "target": "RYYYP",
+  "optimalMoves": 8
+}

@@ -1,0 +1,13 @@
+{
+  "id": 40,
+  "title": "소풍",
+  "hint": "",
+  "rows": [
+    "N Y N N",
+    "Y S Y B",
+    "B N Y N",
+    "# Y Y #"
+  ],
+  "target": "YBBN",
+  "optimalMoves": 6
+}

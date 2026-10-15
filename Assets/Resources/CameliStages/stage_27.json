@@ -1,0 +1,13 @@
+{
+  "id": 27,
+  "title": "꽃향기",
+  "hint": "",
+  "rows": [
+    "N R N #",
+    "P S P P",
+    "R P N R",
+    "# N P #"
+  ],
+  "target": "RRRNP",
+  "optimalMoves": 7
+}

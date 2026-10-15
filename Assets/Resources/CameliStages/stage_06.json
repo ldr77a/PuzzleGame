@@ -1,13 +1,12 @@
 {
   "id": 6,
-  "title": "벽",
-  "hint": "짙은 회색 칸은 벽이에요. 지나갈 수 없어요.",
+  "title": "새 꽃씨",
+  "hint": "새로운 색들이 나와요. 섞으면 어떤 색이 될까요?",
   "rows": [
-    "G # R B",
-    "B S G R",
-    "G R B R",
-    "B R G B"
+    "P O P",
+    "P S P",
+    "O B B"
   ],
-  "target": "RGG",
+  "target": "OOB",
   "optimalMoves": 4
 }

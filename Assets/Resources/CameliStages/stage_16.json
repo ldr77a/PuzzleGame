@@ -1,0 +1,13 @@
+{
+  "id": 16,
+  "title": "넓은 뜰",
+  "hint": "판이 한 줄씩 넓어졌어요. 시작 칸은 가운데 네 칸 중 왼쪽 위예요.",
+  "rows": [
+    "G # R B",
+    "B S G R",
+    "G R B R",
+    "B R G B"
+  ],
+  "target": "RGG",
+  "optimalMoves": 4
+}

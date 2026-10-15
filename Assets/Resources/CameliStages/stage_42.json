@@ -1,0 +1,13 @@
+{
+  "id": 42,
+  "title": "정원사의 길",
+  "hint": "",
+  "rows": [
+    "Y Y P Y",
+    "# S Y B",
+    "P B Y B",
+    "# Y # #"
+  ],
+  "target": "YBBPP",
+  "optimalMoves": 8
+}

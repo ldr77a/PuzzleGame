@@ -1,0 +1,13 @@
+{
+  "id": 26,
+  "title": "다섯 방울",
+  "hint": "이번 목표는 다섯 방울이에요. 방울 수를 끝까지 세어 보세요.",
+  "rows": [
+    "O G O #",
+    "B S B O",
+    "O O O G",
+    "B G O #"
+  ],
+  "target": "OOGGG",
+  "optimalMoves": 7
+}

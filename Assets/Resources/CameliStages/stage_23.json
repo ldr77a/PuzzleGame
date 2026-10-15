@@ -1,0 +1,13 @@
+{
+  "id": 23,
+  "title": "정원 골목",
+  "hint": "",
+  "rows": [
+    "# O O R",
+    "R S O B",
+    "B O R #",
+    "O O # O"
+  ],
+  "target": "OOBB",
+  "optimalMoves": 6
+}

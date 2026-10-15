@@ -1,13 +1,12 @@
 {
   "id": 8,
-  "title": "네 방울",
+  "title": "돌담길",
   "hint": "",
   "rows": [
-    "Y # Y P",
-    "P S P Y",
-    "B B P #",
-    "P B B Y"
+    "B P B",
+    "P S Y",
+    "# B B"
   ],
-  "target": "YYBP",
-  "optimalMoves": 6
+  "target": "YPP",
+  "optimalMoves": 5
 }

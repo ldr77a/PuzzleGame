@@ -1,0 +1,13 @@
+{
+  "id": 35,
+  "title": "햇살 쉼터",
+  "hint": "",
+  "rows": [
+    "# B O O",
+    "O S O Y",
+    "Y B B O",
+    "B B # B"
+  ],
+  "target": "OYYB",
+  "optimalMoves": 6
+}

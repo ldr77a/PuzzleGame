@@ -339,6 +339,37 @@ static class LevelLab
         return 0;
     }
 
+    /// <summary>
+    /// True when every wall shapes the route: turning it into some tile color from <paramref name="colors"/>
+    /// shortens the optimal clear or adds another optimal eaten-cell set (search option wallsmatter).
+    /// </summary>
+    static bool EveryWallMatters(StageFile file, string colors, Analysis a)
+    {
+        string[][] grid = file.rows.Select(r => r.Split(' ', StringSplitOptions.RemoveEmptyEntries)).ToArray();
+        for (int y = 0; y < grid.Length; y++)
+        for (int x = 0; x < grid[y].Length; x++)
+        {
+            if (grid[y][x] != "#") continue;
+            bool matters = false;
+            foreach (char c in colors)
+            {
+                grid[y][x] = c.ToString();
+                var open = new StageFile { id = 0, rows = grid.Select(r => string.Join(" ", r)).ToArray(), target = file.target, gates = file.gates };
+                StageDefinition stage = StageDefinition.FromFile(open);
+                Solution s = Solver.Solve(stage);
+                if (s != null && s.Moves < a.Optimal) { matters = true; break; }
+                if (s != null)
+                {
+                    CountClearSets(stage, s.Moves, out int sets, out _, out _, out _);
+                    if (sets > a.OptimalSets) { matters = true; break; }
+                }
+            }
+            grid[y][x] = "#";
+            if (!matters) return false;
+        }
+        return true;
+    }
+
     static int Search(string[] args)
     {
         var o = args.Select(a => a.Split('=', 2)).ToDictionary(a => a[0], a => a.Length > 1 ? a[1] : "");
@@ -353,6 +384,7 @@ static class LevelLab
         int top = o.TryGetValue("top", out string tp) ? int.Parse(tp) : 5;
         bool requireAllColors = !o.ContainsKey("anycolors");
         bool noHub = o.ContainsKey("nohub");
+        bool wallsMatter = o.ContainsKey("wallsmatter");
         var rng = new Random(o.TryGetValue("seed", out string sd) ? int.Parse(sd) : 1);
 
         var found = new Dictionary<string, (Analysis a, string[] rows)>();
@@ -386,6 +418,7 @@ static class LevelLab
             if (a.Ambiguity < minAmbiguity || a.GateAmbiguity < minAmbiguity) continue;
             if (!a.Exact) continue;
             if (noHub && a.StartReturns > 0) continue;
+            if (wallsMatter && !EveryWallMatters(file, colors, a)) continue;
             found[key] = (a, rows);
         }
 

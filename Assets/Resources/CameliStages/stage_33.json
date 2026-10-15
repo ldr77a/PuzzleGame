@@ -1,0 +1,13 @@
+{
+  "id": 33,
+  "title": "벌집",
+  "hint": "",
+  "rows": [
+    "O R Y #",
+    "O S O R",
+    "Y R Y #",
+    "R R O #"
+  ],
+  "target": "OOYYY",
+  "optimalMoves": 8
+}

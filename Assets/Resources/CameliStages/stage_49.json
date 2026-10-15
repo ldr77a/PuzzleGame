@@ -1,0 +1,17 @@
+{
+  "id": 49,
+  "title": "구석 정원",
+  "hint": "",
+  "rows": [
+    "P O # O P",
+    "N N g0 O N",
+    "# # S P O",
+    "P O O O O",
+    "N N O P P"
+  ],
+  "target": "ONN",
+  "gates": [
+    "OPP"
+  ],
+  "optimalMoves": 11
+}

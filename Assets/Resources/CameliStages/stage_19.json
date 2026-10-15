@@ -1,0 +1,13 @@
+{
+  "id": 19,
+  "title": "꽃밭 산책",
+  "hint": "",
+  "rows": [
+    "Y # Y P",
+    "P S P Y",
+    "B B P #",
+    "P B B Y"
+  ],
+  "target": "YYBP",
+  "optimalMoves": 6
+}

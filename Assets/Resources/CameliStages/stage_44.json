@@ -1,0 +1,13 @@
+{
+  "id": 44,
+  "title": "달빛 정원",
+  "hint": "",
+  "rows": [
+    "O O N N",
+    "N S N B",
+    "N O N #",
+    "N B # N"
+  ],
+  "target": "OOBBN",
+  "optimalMoves": 8
+}
