@@ -3,11 +3,11 @@
   "title": "갈림길",
   "hint": "",
   "rows": [
-    "B Y B B",
-    "Y S R R",
-    "B # B R",
-    "Y B B R"
+    "B O B B",
+    "O S N B",
+    "B # N B",
+    "O N O N"
   ],
-  "target": "RYY",
+  "target": "OON",
   "optimalMoves": 5
 }

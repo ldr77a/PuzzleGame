@@ -3,15 +3,15 @@
   "title": "구석 정원",
   "hint": "",
   "rows": [
-    "G R # B B",
-    "R B g0 R G",
-    "# # S G R",
-    "B G B Y Y",
-    "Y R G G Y"
+    "P O # O P",
+    "N N g0 O N",
+    "# # S P O",
+    "P O O O O",
+    "N N O P P"
   ],
-  "target": "RRB",
+  "target": "ONN",
   "gates": [
-    "YYB"
+    "OPP"
   ],
   "optimalMoves": 11
 }

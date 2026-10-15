@@ -3,11 +3,11 @@
   "title": "네 방울",
   "hint": "",
   "rows": [
-    "R # R Y",
-    "Y S Y B",
-    "B Y R #",
-    "Y B Y Y"
+    "Y # Y P",
+    "P S P Y",
+    "B B P #",
+    "P B B Y"
   ],
-  "target": "RYBB",
+  "target": "YYBP",
   "optimalMoves": 6
 }

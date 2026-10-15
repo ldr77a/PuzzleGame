@@ -3,11 +3,11 @@
   "title": "벽",
   "hint": "짙은 회색 칸은 벽이에요. 지나갈 수 없어요.",
   "rows": [
-    "B # B R",
-    "Y S R R",
-    "Y R B Y",
-    "B Y Y R"
+    "G # R B",
+    "B S G R",
+    "G R B R",
+    "B R G B"
   ],
-  "target": "RBB",
+  "target": "RGG",
   "optimalMoves": 4
 }

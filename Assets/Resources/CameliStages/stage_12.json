@@ -1,17 +1,17 @@
 {
   "id": 12,
-  "title": "연두 문",
+  "title": "청록 문",
   "hint": "",
   "rows": [
-    "B Y # R R",
-    "R B g0 Y G",
-    "# # S G Y",
-    "G B B Y G",
-    "G G Y R R"
+    "G G # G G",
+    "P P g0 B B",
+    "# # S P B",
+    "P B B B G",
+    "B B P P B"
   ],
-  "target": "RB",
+  "target": "GP",
   "gates": [
-    "YYB"
+    "GBB"
   ],
   "optimalMoves": 9
 }

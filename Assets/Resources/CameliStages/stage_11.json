@@ -3,13 +3,13 @@
   "title": "초록 문",
   "hint": "",
   "rows": [
-    "G Y R R R",
-    "B # g0 # R",
-    "# R S B #",
-    "G Y G Y R",
-    "B Y G G R"
+    "B N Y Y Y",
+    "N # g0 # N",
+    "# N S N #",
+    "B Y B N Y",
+    "N B N B B"
   ],
-  "target": "RRY",
+  "target": "YYN",
   "gates": [
     "YB"
   ],
