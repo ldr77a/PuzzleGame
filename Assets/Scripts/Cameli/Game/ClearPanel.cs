@@ -4,7 +4,7 @@ using UnityEngine.UI;
 
 namespace Cameli.Game
 {
-    /// <summary>Overlay shown after a clear: stars, moves versus optimal, replay and next.</summary>
+    /// <summary>Overlay shown after a clear: stars, the restart count that set them, replay and next.</summary>
     sealed class ClearPanel
     {
         readonly GameObject root;
@@ -45,11 +45,11 @@ namespace Cameli.Game
             root.SetActive(false);
         }
 
-        public void ShowStageClear(int earned, int moves, int optimalMoves, bool hasNext)
+        public void ShowStageClear(int earned, int restarts, bool hasNext)
         {
             title.text = "클리어!";
             SetStars(earned);
-            detail.text = $"걸음 {moves} · 최단 {optimalMoves}";
+            detail.text = restarts == 0 ? "한 번에 깼어요" : $"다시 하기 {restarts}번";
             nextLabel.text = hasNext ? "다음 스테이지" : "결과 보기";
             root.SetActive(true);
             root.transform.SetAsLastSibling();

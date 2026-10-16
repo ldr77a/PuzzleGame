@@ -10,8 +10,8 @@ namespace Cameli.Game
     /// <summary>
     /// Draws the grid and the player token and animates moves. Cells are positioned with normalized anchors,
     /// so the board scales with its RectTransform and needs no pixel math.
-    /// The Phase 2 screen also uses the guides: a glowing cell (tutorial focus, hint target), a hint arrow, and a
-    /// tutorial finger swipe. They never take input and are cleared by <see cref="Build"/>.
+    /// The Phase 2 screen also uses the guides: a glowing cell (tutorial focus), the hinted color's cells
+    /// blinking, and a tutorial finger swipe. They never take input and are cleared by <see cref="Build"/>.
     /// </summary>
     public sealed class BoardView : MonoBehaviour
     {
@@ -25,8 +25,9 @@ namespace Cameli.Game
         /// <summary>The glow frame sticks out this fraction of a cell on every side.</summary>
         const float GlowGrow = 0.08f;
         const float GlowPulseSpeed = 4f;
-        const float ArrowSize = 0.42f;
-        const float ArrowBob = 0.08f;
+        const float BlinksPerSecond = 1.6f;
+        const float BlinkLighten = 0.6f;
+        const float BlinkGrow = 0.06f;
         const float FingerSize = 0.36f;
         const float SwipeCycleSeconds = 1.8f;
 
@@ -37,8 +38,9 @@ namespace Cameli.Game
         CameliFigure figure;
         RectTransform guides;
         CanvasGroup glow;
-        RectTransform arrow;
-        Vector2 arrowCenter, arrowStep;
+        BoardState shown;
+        int blinkColor = -1;
+        float blinkClock;
         CanvasGroup finger;
         Vector2 swipeFrom, swipeTo;
         float swipeClock;
@@ -87,9 +89,9 @@ namespace Cameli.Game
                 Ui.Inset(tokenFill.rectTransform, 0.1f);
             }
 
-            // Arrow and finger draw over the token; SnapToken keeps this layer last.
+            // The finger draws over the token; SnapToken keeps this layer last.
             guides = Ui.Stretch(Ui.NewRect("Guides", transform));
-            arrow = NewArrow(guides);
+            blinkColor = -1;
             finger = NewFinger(guides);
             SnapToken(state.Position);
             Refresh(state);
@@ -98,8 +100,10 @@ namespace Cameli.Game
         /// <summary>Updates cell colors (eaten cells turn to floor) and the token's mixed color.</summary>
         public void Refresh(BoardState state)
         {
+            shown = state;
             for (int i = 0; i < cells.Count; i++)
             {
+                cells[i].rectTransform.localScale = Vector3.one;
                 switch (Rules.VisibleKind(stage, state, i))
                 {
                     case CellKind.Color:
@@ -138,7 +142,7 @@ namespace Cameli.Game
             moveRoutine = StartCoroutine(Slide(from, to));
         }
 
-        /// <summary>Jumps a running move to its end so undo/restart never see a half-finished move.</summary>
+        /// <summary>Jumps a running move to its end so a restart or hint never sees a half-finished move.</summary>
         public void CompleteAnimation()
         {
             if (moveRoutine == null) return;
@@ -187,7 +191,7 @@ namespace Cameli.Game
             target.anchoredPosition = Vector2.zero;
         }
 
-        /// <summary>Makes a cell glow (tutorial focus or hint target) until <see cref="HideGlow"/> or <see cref="ClearGuides"/>.</summary>
+        /// <summary>Makes a cell glow (tutorial focus) until <see cref="HideGlow"/> or <see cref="ClearGuides"/>.</summary>
         public void ShowGlow(int cellIndex)
         {
             if (glow == null || cellIndex < 0 || cellIndex >= cells.Count) return;
@@ -200,22 +204,32 @@ namespace Cameli.Game
             if (glow != null) glow.gameObject.SetActive(false);
         }
 
-        /// <summary>Hint arrow on the edge of <paramref name="cellIndex"/>, pointing toward its neighbor in <paramref name="direction"/>.</summary>
-        public void ShowArrow(int cellIndex, Direction direction)
+        /// <summary>
+        /// Hint: every uneaten cell of palette color <paramref name="color"/> blinks until <see cref="HideBlink"/> or
+        /// <see cref="ClearGuides"/>. Returns how many cells blink (0 when none of that color is left).
+        /// </summary>
+        public int ShowBlink(int color)
         {
-            if (arrow == null || cellIndex < 0 || cellIndex >= cells.Count) return;
-            Vector2 step = Step(direction);
-            arrowStep = step;
-            arrowCenter = CellCenter(cellIndex) + step * 0.55f;
-            PlaceAt(arrow, arrowCenter, CellSide * ArrowSize);
-            arrow.localEulerAngles = new Vector3(0f, 0f, Mathf.Atan2(step.y, step.x) * Mathf.Rad2Deg);
-            arrow.gameObject.SetActive(true);
+            HideBlink();
+            if (stage == null) return 0;
+            int count = 0;
+            for (int i = 0; i < cells.Count; i++)
+                if (IsBlinking(i, color)) count++;
+            if (count == 0) return 0;
+            blinkColor = color;
+            blinkClock = 0f;
+            return count;
         }
 
-        public void HideArrow()
+        public void HideBlink()
         {
-            if (arrow != null) arrow.gameObject.SetActive(false);
+            if (blinkColor < 0) return;
+            blinkColor = -1;
+            Refresh(shown);
         }
+
+        bool IsBlinking(int cellIndex, int color) =>
+            Rules.VisibleKind(stage, shown, cellIndex) == CellKind.Color && stage.CellAt(cellIndex).Color == color;
 
         /// <summary>Tutorial: a fingertip swipes from <paramref name="cellIndex"/> toward <paramref name="direction"/>, over and over.</summary>
         public void ShowSwipe(int cellIndex, Direction direction)
@@ -233,11 +247,11 @@ namespace Cameli.Game
             if (finger != null) finger.gameObject.SetActive(false);
         }
 
-        /// <summary>Hides the glow, the arrow, and the finger.</summary>
+        /// <summary>Hides the glow, the blinking, and the finger.</summary>
         public void ClearGuides()
         {
             HideGlow();
-            HideArrow();
+            HideBlink();
             HideSwipe();
         }
 
@@ -249,12 +263,27 @@ namespace Cameli.Game
                 glow.alpha = Mathf.Lerp(0.55f, 1f, wave);
                 glow.transform.localScale = Vector3.one * (1f + 0.035f * wave);
             }
-            if (arrow != null && arrow.gameObject.activeSelf)
-                PlaceAt(arrow, arrowCenter + arrowStep * (ArrowBob * wave), CellSide * ArrowSize);
+            if (blinkColor >= 0) AnimateBlink();
             if (finger != null && finger.gameObject.activeSelf)
             {
                 swipeClock += Time.unscaledDeltaTime;
                 AnimateFinger();
+            }
+        }
+
+        /// <summary>The hinted cells flash toward white and swell a little, starting lit so the first blink shows at once.</summary>
+        void AnimateBlink()
+        {
+            blinkClock += Time.unscaledDeltaTime;
+            float lit = Mathf.Cos(blinkClock * BlinksPerSecond * 2f * Mathf.PI) * 0.5f + 0.5f;
+            Color tile = Theme.ToColor(Palette.Color(blinkColor));
+            Color flash = Color.Lerp(tile, Color.white, BlinkLighten * lit);
+            Vector3 scale = Vector3.one * (1f + BlinkGrow * lit);
+            for (int i = 0; i < cells.Count; i++)
+            {
+                if (!IsBlinking(i, blinkColor)) continue;
+                cells[i].color = flash;
+                cells[i].rectTransform.localScale = scale;
             }
         }
 
@@ -280,15 +309,6 @@ namespace Cameli.Game
             Ui.Stretch(light.rectTransform, 5f, 5f, 5f, 5f);
             root.gameObject.SetActive(false);
             return group;
-        }
-
-        static RectTransform NewArrow(Transform parent)
-        {
-            RectTransform root = Ui.NewRect("Hint Arrow", parent);
-            Ui.Stretch(Ui.NewImage("Shade", root, SpriteFactory.PlayIcon, new Color(Theme.Ink.r, Theme.Ink.g, Theme.Ink.b, 0.6f)).rectTransform);
-            Ui.Inset(Ui.NewImage("Arrow", root, SpriteFactory.PlayIcon, Color.white).rectTransform, 0.1f);
-            root.gameObject.SetActive(false);
-            return root;
         }
 
         static CanvasGroup NewFinger(Transform parent)

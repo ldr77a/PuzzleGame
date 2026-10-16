@@ -8,7 +8,7 @@ namespace Cameli.Game
 {
     /// <summary>
     /// The clear sequence over the play screen (Phase 2 spec §5): the board fades back, a camellia in the target
-    /// color blooms, then the title, the stars one by one, the moves, the star-cap reason, and the buttons. A tap
+    /// color blooms, then the title, the stars one by one, the restart count, the star-cap reason, and the buttons. A tap
     /// during the sequence jumps to the end. The buttons only take input once everything is shown, so the
     /// skipping tap can never press one, and a moment longer after a skip, so neither can the second tap of a
     /// double tap.
@@ -75,7 +75,7 @@ namespace Cameli.Game
 
             RectTransform detailRect = Ui.Box(Ui.NewRect("Details", root), new Vector2(0.5f, 0.27f), Vector2.zero, new Vector2(1000f, 140f));
             details = detailRect.gameObject.AddComponent<CanvasGroup>();
-            detail = Widgets.Label(detailRect, "Moves", "", 44, Theme.Muted);
+            detail = Widgets.Label(detailRect, "Restarts", "", 44, Theme.Muted);
             Ui.TopStrip(detail.rectTransform, 0f, 70f);
             reason = Widgets.Label(detailRect, "Cap Reason", "", 38, Theme.Primary);
             Ui.TopStrip(reason.rectTransform, 74f, 60f);
@@ -99,12 +99,12 @@ namespace Cameli.Game
 
         /// <param name="reasonLine">Why the stars were capped, or "" when they were not.</param>
         /// <param name="hasNext">False on the last stage: [정원으로] replaces [정원] and [다음].</param>
-        public void Show(Color targetColor, int stars, int moves, int optimalMoves, string reasonLine, bool hasNext)
+        /// <param name="restarts">Restarts in this visit, the count that set the stars.</param>
+        public void Show(Color targetColor, int stars, int restarts, string reasonLine, bool hasNext)
         {
             earned = stars;
             Blossoms.SetFlowerColor(flower, targetColor);
-            // Jua has no "·", so the two numbers are separated with a slash.
-            detail.text = $"걸음 {moves} / 최단 {optimalMoves}";
+            detail.text = restarts == 0 ? "한 번에 깼어요" : $"다시 하기 {restarts}번";
             reason.text = reasonLine;
             gardenButton.gameObject.SetActive(hasNext);
             nextButton.gameObject.SetActive(hasNext);

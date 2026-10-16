@@ -24,8 +24,8 @@ namespace Cameli.Game
         /// <summary>Any button: click.</summary>
         Button,
 
-        /// <summary>Undo: short blip that swells in, like a sound played backwards.</summary>
-        Undo,
+        /// <summary>Restart ("다시 하기"): short blip that swells in, like a sound played backwards.</summary>
+        Restart,
     }
 
     /// <summary>
@@ -107,7 +107,7 @@ namespace Cameli.Game
             made[(int)SfxKind.Clear] = Clip("Clear", 1.1f, (t, s) =>
                 (Bell(t, 0f, 523.3f, 3f) + Bell(t, 0.03f, 659.3f, 3f) + Bell(t, 0.06f, 784f, 3f) + Bell(t, 0.09f, 1046.5f, 3f)) * 0.8f);
             made[(int)SfxKind.Button] = Clip("Button", 0.03f, (t, s) => Tone(s, Sweep(t, 0.03f, 1700f, 1300f)) * Envelope(t, 0.03f, 0.002f, 120f) * 0.7f);
-            made[(int)SfxKind.Undo] = Clip("Undo", 0.12f, (t, s) => Tone(s, Sweep(t, 0.12f, 420f, 760f)) * Envelope(0.12f - t, 0.12f, 0.008f, 25f));
+            made[(int)SfxKind.Restart] = Clip("Restart", 0.12f, (t, s) => Tone(s, Sweep(t, 0.12f, 420f, 760f)) * Envelope(0.12f - t, 0.12f, 0.008f, 25f));
             return made;
         }
 

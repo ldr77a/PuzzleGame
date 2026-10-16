@@ -12,14 +12,14 @@ namespace Cameli.Game
     /// <summary>
     /// Phase 1 prototype entry point. Put it on an empty GameObject: it builds the UI, loads the stages, and
     /// turns swipes, taps, and keys into moves on a <see cref="GameSession"/>.
-    /// Editor keys: arrows/WASD move, Z or Backspace undo, R restart. Holding the stage title for two seconds opens
+    /// Editor keys: arrows/WASD move, R restart. Holding the stage title for two seconds opens
     /// the playtest tools (next tester, playtest log summary).
     /// </summary>
     public sealed class CameliGame : MonoBehaviour
     {
         const int MaxBufferedMoves = 2;
         const float ClearPanelDelay = 0.3f;
-        const string OverfilledMessage = "방울이 너무 많아요. 되돌리기나 처음부터를 눌러 보세요.";
+        const string OverfilledMessage = "방울이 너무 많아요. 처음부터를 눌러 보세요.";
 
         readonly Queue<Direction> bufferedMoves = new Queue<Direction>();
         List<StageDefinition> stages;
@@ -63,7 +63,6 @@ namespace Cameli.Game
                 if (keyboard.downArrowKey.wasPressedThisFrame || keyboard.sKey.wasPressedThisFrame) RequestMove(Direction.Down);
                 if (keyboard.leftArrowKey.wasPressedThisFrame || keyboard.aKey.wasPressedThisFrame) RequestMove(Direction.Left);
                 if (keyboard.rightArrowKey.wasPressedThisFrame || keyboard.dKey.wasPressedThisFrame) RequestMove(Direction.Right);
-                if (keyboard.zKey.wasPressedThisFrame || keyboard.backspaceKey.wasPressedThisFrame) Undo();
                 if (keyboard.rKey.wasPressedThisFrame) Restart();
             }
 
@@ -157,26 +156,7 @@ namespace Cameli.Game
             playtestLog.End(PlaytestLog.ResultClear, session.State.Moves, session.Stars);
             hud.SetStage(Stage, stageIndex, stages.Count, stageIndex > 0, stageIndex < LastOpenIndex);
             yield return new WaitForSecondsRealtime(ClearPanelDelay);
-            clearPanel.ShowStageClear(session.Stars, session.State.Moves, Stage.OptimalMoves, stageIndex < stages.Count - 1);
-        }
-
-        void Undo()
-        {
-            if (session == null || clearPanel.IsVisible) return;
-            board.CompleteAnimation();
-            bufferedMoves.Clear();
-            if (session.Undo())
-            {
-                playtestLog.CountUndo();
-                board.Refresh(session.State);
-                board.SnapToken(session.State.Position);
-                hud.Refresh(session);
-                hud.ShowMessage(Rules.IsOverfilled(Stage, session.State) ? OverfilledMessage : "");
-            }
-            else if (!session.IsCleared)
-            {
-                hud.ShowMessage(session.UndosRemaining == 0 ? "되돌리기를 다 썼어요. 처음부터 다시 해 보세요." : "되돌릴 걸음이 없어요.");
-            }
+            clearPanel.ShowStageClear(session.Stars, session.Restarts, stageIndex < stages.Count - 1);
         }
 
         void Restart()
@@ -185,10 +165,16 @@ namespace Cameli.Game
             board.CompleteAnimation();
             StopAllCoroutines();
             bufferedMoves.Clear();
-            // Replaying a cleared stage is a new attempt; restarting an unfinished one is part of it.
-            if (playtestLog.IsOpen) playtestLog.CountRestart();
-            else playtestLog.Begin(Stage.Id);
-            session.Restart();
+            // Replaying a cleared stage is a new visit and attempt; restarting an unfinished one is part of it.
+            if (session.IsCleared)
+            {
+                if (!playtestLog.IsOpen) playtestLog.Begin(Stage.Id);
+                session.StartOver();
+            }
+            else if (session.Restart())
+            {
+                playtestLog.CountRestart();
+            }
             clearPanel.Hide();
             showingAllClear = false;
             board.Refresh(session.State);
@@ -294,7 +280,7 @@ namespace Cameli.Game
             RectTransform safeArea = Ui.Stretch(Ui.NewRect("Safe Area", canvasObject.transform));
             safeArea.gameObject.AddComponent<SafeAreaFitter>();
 
-            hud = new HudView(safeArea, Restart, Undo, () => ChangeStage(-1), () => ChangeStage(1), OpenPlaytestPanel);
+            hud = new HudView(safeArea, Restart, () => ChangeStage(-1), () => ChangeStage(1), OpenPlaytestPanel);
 
             RectTransform boardArea = Ui.Stretch(Ui.NewRect("Board Area", safeArea), 40f, HudView.BottomReserved, 40f, HudView.TopReserved);
             Image boardImage = Ui.NewImage("Board", boardArea, SpriteFactory.RoundedRect, Theme.Board);

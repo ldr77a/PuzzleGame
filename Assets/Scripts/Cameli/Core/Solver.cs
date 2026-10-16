@@ -39,8 +39,7 @@ namespace Cameli.Core
 
     /// <summary>
     /// Breadth-first search over board states using the same <see cref="Rules"/> as the game, so the
-    /// first clear found is a shortest one. Tooling and tests search whole stages; at runtime only
-    /// <see cref="Hints"/> uses it, from the current state and with a small state cap.
+    /// first clear found is a shortest one. Tooling and tests only; the game itself never searches.
     /// </summary>
     public static class Solver
     {

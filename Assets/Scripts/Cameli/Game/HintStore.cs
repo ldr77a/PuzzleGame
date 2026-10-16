@@ -1,52 +1,44 @@
-using System.Collections.Generic;
+using System;
+using System.Globalization;
 using UnityEngine;
 
 namespace Cameli.Game
 {
     /// <summary>
-    /// Hint inventory shared by all stages, and which stages have their recipe revealed (Phase 2 spec §6), in
-    /// PlayerPrefs. The first hint used on a stage reveals its recipe for good; later ones show the next step.
+    /// The day's free hints, shared by all stages, in PlayerPrefs (Phase 2 spec §14): <see cref="DailyHints"/> each
+    /// day by the device's local date, and unused ones don't carry over. Once they run out, a hint comes from a
+    /// rewarded ad and is used on the spot, so nothing is ever stocked.
     /// </summary>
     static class HintStore
     {
-        public const int StartingHints = 3;
+        public const int DailyHints = 3;
 
         const string CountKey = "cameli.hints";
-        const string RecipeKeyPrefix = "cameli.recipe.";
+        const string DayKey = "cameli.hints.day";
 
-        public static int Count => Mathf.Max(0, PlayerPrefs.GetInt(CountKey, StartingHints));
+        static string Today => DateTime.Now.ToString("yyyyMMdd", CultureInfo.InvariantCulture);
 
-        /// <summary>Adds hints (the reward for watching an ad once they run out).</summary>
-        public static void Add(int count)
-        {
-            if (count <= 0) return;
-            PlayerPrefs.SetInt(CountKey, Count + count);
-            PlayerPrefs.Save();
-        }
+        /// <summary>Hints left today; a new day (or no record yet) starts at <see cref="DailyHints"/>.</summary>
+        public static int Count => PlayerPrefs.GetString(DayKey, "") == Today
+            ? Mathf.Clamp(PlayerPrefs.GetInt(CountKey, DailyHints), 0, DailyHints)
+            : DailyHints;
 
-        /// <summary>Uses one hint; false (and nothing changes) when none are left.</summary>
+        /// <summary>Uses one of today's hints; false (and nothing changes) when none are left.</summary>
         public static bool TrySpend()
         {
             int count = Count;
             if (count == 0) return false;
+            PlayerPrefs.SetString(DayKey, Today);
             PlayerPrefs.SetInt(CountKey, count - 1);
             PlayerPrefs.Save();
             return true;
         }
 
-        public static bool IsRecipeRevealed(int stageId) => PlayerPrefs.GetInt(RecipeKeyPrefix + stageId, 0) != 0;
-
-        public static void RevealRecipe(int stageId)
-        {
-            PlayerPrefs.SetInt(RecipeKeyPrefix + stageId, 1);
-            PlayerPrefs.Save();
-        }
-
-        /// <summary>Back to <see cref="StartingHints"/> hints and no revealed recipes, for the next playtester.</summary>
-        public static void ResetAll(IEnumerable<int> stageIds)
+        /// <summary>Back to a full day of hints, for the next playtester.</summary>
+        public static void ResetAll()
         {
             PlayerPrefs.DeleteKey(CountKey);
-            foreach (int id in stageIds) PlayerPrefs.DeleteKey(RecipeKeyPrefix + id);
+            PlayerPrefs.DeleteKey(DayKey);
             PlayerPrefs.Save();
         }
     }

@@ -7,9 +7,9 @@ namespace Cameli.Game
 {
     /// <summary>
     /// The white card above the board (Phase 2 spec §2): the bud to bloom in the target color, the drop slots
-    /// (eaten drops as colored dots in eating order, the rest dashed), "방울 x/y", the recipe chips once a hint
-    /// revealed them, and Cameli in the current mix. The chips stay in the middle column: on one row, or on two
-    /// when that lets them be bigger, shrunk to fit either way (up to five colors).
+    /// (eaten drops as colored dots in eating order, the rest dashed), "방울 x/y", a chip per recipe color the
+    /// attempt's hints revealed (color only, no drop count), and Cameli in the current mix. The chips stay in the
+    /// middle column: on one row, or on two when that lets them be bigger, shrunk to fit either way (up to five).
     /// </summary>
     sealed class GoalCard
     {
@@ -40,7 +40,7 @@ namespace Cameli.Game
         readonly RectTransform chipBlock;
         readonly List<RectTransform> chips = new List<RectTransform>();
         readonly List<float> chipWidths = new List<float>();
-        readonly List<int> order = new List<int>();
+        readonly List<int> chipColors = new List<int>();
 
         public GoalCard(RectTransform parent, float top, float sideInset)
         {
@@ -68,19 +68,12 @@ namespace Cameli.Game
             chipBlock = Ui.Box(Ui.NewRect("Chips", chipArea), new Vector2(0.5f, 1f), Vector2.zero, Vector2.zero);
         }
 
-        /// <summary>New stage: bud color and recipe chips (shown only when <paramref name="recipeRevealed"/>).</summary>
-        public void SetStage(StageDefinition stage, bool recipeRevealed)
+        /// <summary>New stage: bud color, and no revealed colors yet.</summary>
+        public void SetStage(StageDefinition stage)
         {
             Blossoms.SetBudColor(bud, Theme.ToColor(stage.TargetColor));
-            foreach (RectTransform chip in chips) Object.Destroy(chip.gameObject);
-            chips.Clear();
-            chipWidths.Clear();
-            for (int color = 0; color < Palette.Count; color++)
-                if (stage.Target[color] > 0) AddChip(color, stage.Target[color]);
-            ShowRecipe(recipeRevealed);
+            SetChips(new List<int>());
         }
-
-        public void ShowRecipe(bool visible) => chipArea.gameObject.SetActive(visible);
 
         public void Refresh(GameSession session)
         {
@@ -91,7 +84,7 @@ namespace Cameli.Game
             dropsLabel.text = $"방울 {state.Drops.Total}/{target}";
             dropsLabel.color = overfilled ? Theme.Accent : Theme.Ink;
 
-            EatenOrder(session, order);
+            IReadOnlyList<int> order = session.MixOrder;
             int count = Mathf.Max(target, order.Count);
             while (slots.Count < count) slots.Add(new Slot(slotRow));
             float width = slotRow.rect.width > 0f ? slotRow.rect.width : 500f;
@@ -106,7 +99,31 @@ namespace Cameli.Game
                 if (i < order.Count) slot.ShowDrop(Theme.ToColor(Palette.Color(order[i])));
                 else slot.ShowEmpty();
             }
+            if (!SameColors(session.RevealedColors, chipColors)) SetChips(session.RevealedColors);
             LayoutChips();
+        }
+
+        /// <summary>One chip per color, in this order; the chip area hides when there are none.</summary>
+        void SetChips(IReadOnlyList<int> colors)
+        {
+            foreach (RectTransform chip in chips) Object.Destroy(chip.gameObject);
+            chips.Clear();
+            chipWidths.Clear();
+            chipColors.Clear();
+            foreach (int color in colors)
+            {
+                AddChip(color);
+                chipColors.Add(color);
+            }
+            chipArea.gameObject.SetActive(chips.Count > 0);
+        }
+
+        static bool SameColors(IReadOnlyList<int> a, List<int> b)
+        {
+            if (a.Count != b.Count) return false;
+            for (int i = 0; i < a.Count; i++)
+                if (a[i] != b[i]) return false;
+            return true;
         }
 
         /// <summary>
@@ -166,39 +183,7 @@ namespace Cameli.Game
             }
         }
 
-        /// <summary>
-        /// Colors in the current mix in the order they were eaten, rebuilt from the attempt's history (the core
-        /// state only counts drops). A passed gate empties the mix and starts the order over.
-        /// </summary>
-        static void EatenOrder(GameSession session, List<int> result)
-        {
-            result.Clear();
-            var states = new List<BoardState>(session.History);
-            states.Reverse();
-            states.Add(session.State);
-            for (int i = 1; i < states.Count; i++)
-            {
-                DropCounts before = states[i - 1].Drops, after = states[i].Drops;
-                if (after.IsEmpty)
-                {
-                    result.Clear();
-                    continue;
-                }
-                if (after.Total != before.Total + 1) continue;
-                for (int color = 0; color < Palette.Count; color++)
-                    if (after[color] == before[color] + 1) result.Add(color);
-            }
-            // Should the history ever disagree with the counts, fall back to the counts in palette order.
-            if (result.Count != session.State.Drops.Total)
-            {
-                result.Clear();
-                DropCounts drops = session.State.Drops;
-                for (int color = 0; color < Palette.Count; color++)
-                    for (int n = 0; n < drops[color]; n++) result.Add(color);
-            }
-        }
-
-        void AddChip(int color, int count)
+        void AddChip(int color)
         {
             Image chip = Widgets.Round(Ui.NewImage($"Chip {Palette.Letter(color)}", chipBlock, SpriteFactory.RoundedRect, Theme.Background), 32f);
             var layout = chip.gameObject.AddComponent<HorizontalLayoutGroup>();
@@ -215,7 +200,7 @@ namespace Cameli.Game
             dotSize.preferredWidth = dotSize.preferredHeight = ChipDot;
             Ui.Stretch(Ui.NewImage("Ring", dot.transform, SpriteFactory.Ring, new Color(Theme.Ink.r, Theme.Ink.g, Theme.Ink.b, 0.25f)).rectTransform);
 
-            Text label = Widgets.Label(chip.transform, "Label", $"{Palette.Name(color)} {count}", 34, Theme.Ink);
+            Text label = Widgets.Label(chip.transform, "Label", Palette.Name(color), 34, Theme.Ink);
             label.horizontalOverflow = HorizontalWrapMode.Overflow;
 
             // The chip's own width, fixed here so LayoutChips can arrange the rows without a layout pass.

@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.Linq;
 using Cameli.Core;
 using NUnit.Framework;
@@ -296,7 +298,7 @@ namespace Cameli.Tests
             session.Move(Direction.Right);
             Assert.IsTrue(Rules.IsOverfilled(session.Stage, session.State), "RRB: three drops for a two-drop target");
 
-            session.Undo();
+            session.Restart();
             Assert.IsFalse(Rules.IsOverfilled(session.Stage, session.State));
         }
 
@@ -339,178 +341,175 @@ namespace Cameli.Tests
         }
 
         [Test]
-        public void UndoRestoresTheEatenCellAndMix()
+        public void RestartGoesBackToTheStartAndCounts()
         {
             var session = new GameSession(TestStages.Basic());
             session.Move(Direction.Up);
-            Assert.IsTrue(session.Undo());
+            Assert.IsTrue(session.CanRestart);
+            Assert.IsTrue(session.Restart());
             Assert.AreEqual(session.Stage.StartIndex, session.State.Position);
-            Assert.IsTrue(session.State.Drops.IsEmpty);
-            Assert.AreEqual(CellKind.Color, Rules.VisibleKind(session.Stage, session.State, 1));
-            Assert.AreEqual(GameSession.UndoAllowance - 1, session.UndosRemaining);
-        }
-
-        [Test]
-        public void UndoIsLimitedPerAttempt()
-        {
-            var session = new GameSession(TestStages.Basic());
-            for (int i = 0; i < 5; i++)
-            {
-                session.Move(Direction.Up);
-                session.Move(Direction.Down);
-            }
-            for (int i = 0; i < GameSession.UndoAllowance; i++) Assert.IsTrue(session.Undo());
-            Assert.IsFalse(session.CanUndo);
-            Assert.IsFalse(session.Undo());
-        }
-
-        [Test]
-        public void NoUndoAfterClearing()
-        {
-            var session = new GameSession(TestStages.Basic());
-            session.Move(Direction.Up);
-            session.Move(Direction.Right);
-            Assert.IsFalse(session.Undo());
-        }
-
-        [Test]
-        public void RestartResetsBoardAndUndos()
-        {
-            var session = new GameSession(TestStages.Basic());
-            session.Move(Direction.Up);
-            session.Undo();
-            session.Move(Direction.Left);
-            session.Restart();
-            Assert.AreEqual(BoardState.Initial(session.Stage).Position, session.State.Position);
             Assert.AreEqual(0UL, session.State.Eaten);
             Assert.AreEqual(0, session.State.Moves);
-            Assert.AreEqual(GameSession.UndoAllowance, session.UndosRemaining);
+            Assert.IsTrue(session.State.Drops.IsEmpty);
+            Assert.AreEqual(0, session.MixOrder.Count);
+            Assert.AreEqual(1, session.Restarts);
         }
 
         [Test]
-        public void StarsCompareMovesToOptimal()
+        public void RestartBeforeTheFirstMoveDoesNothing()
         {
-            Assert.AreEqual(3, Scoring.Stars(4, 4));
-            Assert.AreEqual(2, Scoring.Stars(6, 4));
-            Assert.AreEqual(1, Scoring.Stars(7, 4));
+            var session = new GameSession(TestStages.Basic());
+            Assert.IsFalse(session.CanRestart);
+            Assert.IsFalse(session.Restart());
+            Assert.AreEqual(0, session.Restarts);
+
+            int color = session.RevealColor(new Random(1));
+            Assert.IsFalse(session.Restart(), "still no move");
+            CollectionAssert.AreEqual(new[] { color }, session.RevealedColors, "a free restart can't hide a hint");
+            Assert.IsTrue(session.UsedHint);
         }
 
         [Test]
-        public void AssistedClearsEarnAtMostTwoStars()
+        public void NoRestartAfterClearingButStartOverBeginsAFreshVisit()
         {
-            Assert.AreEqual(3, Scoring.Stars(4, 4, false));
-            Assert.AreEqual(2, Scoring.Stars(4, 4, true));
-            Assert.AreEqual(2, Scoring.Stars(6, 4, true));
-            Assert.AreEqual(1, Scoring.Stars(7, 4, true));
-        }
-
-        [Test]
-        public void UndoCapsTheStars()
-        {
-            var session = new GameSession(TestStages.BasicScored());
-            Assert.IsFalse(session.Undo(), "nothing to undo yet");
-            Assert.IsFalse(session.UsedUndo, "a refused undo does not count");
-
+            var session = new GameSession(TestStages.Basic());
             session.Move(Direction.Left);
-            session.Undo();
-            Assert.IsTrue(session.UsedUndo);
+            session.Restart();
             session.Move(Direction.Up);
             session.Move(Direction.Right);
-            Assert.AreEqual(2, session.State.Moves, "optimal after the undo");
+            Assert.IsTrue(session.IsCleared);
+            Assert.IsFalse(session.Restart());
+            Assert.AreEqual(1, session.Restarts);
+            Assert.AreEqual(2, session.Stars);
+
+            session.StartOver();
+            Assert.IsFalse(session.IsCleared);
+            Assert.AreEqual(0, session.Restarts);
+            Assert.AreEqual(0, session.State.Moves);
+            session.Move(Direction.Up);
+            session.Move(Direction.Right);
+            Assert.AreEqual(3, session.Stars);
+        }
+
+        [Test]
+        public void StarsCountRestarts()
+        {
+            Assert.AreEqual(3, Scoring.Stars(0, false));
+            Assert.AreEqual(2, Scoring.Stars(1, false));
+            Assert.AreEqual(1, Scoring.Stars(2, false));
+            Assert.AreEqual(1, Scoring.Stars(7, false));
+        }
+
+        [Test]
+        public void HintedClearsEarnAtMostTwoStars()
+        {
+            Assert.AreEqual(2, Scoring.Stars(0, true));
+            Assert.AreEqual(2, Scoring.Stars(1, true));
+            Assert.AreEqual(1, Scoring.Stars(2, true));
+        }
+
+        [Test]
+        public void MovesDoNotAffectTheStars()
+        {
+            var session = new GameSession(TestStages.BasicScored());
+            session.Move(Direction.Up);
+            session.Move(Direction.Down);
+            session.Move(Direction.Up);
+            session.Move(Direction.Right);
+            Assert.IsTrue(session.IsCleared);
+            Assert.AreEqual(4, session.State.Moves, "twice the optimum");
+            Assert.AreEqual(3, session.Stars);
+        }
+
+        [Test]
+        public void StarsIfClearedFollowRestartsAndHints()
+        {
+            var session = new GameSession(TestStages.Basic());
+            Assert.AreEqual(3, session.StarsIfCleared);
+            Assert.AreEqual(0, session.Stars, "not cleared yet");
+            session.RevealColor(new Random(1));
+            Assert.AreEqual(2, session.StarsIfCleared);
+            session.Move(Direction.Left);
+            session.Restart();
+            Assert.AreEqual(2, session.StarsIfCleared, "the restart hid the hint, and one restart is two stars");
+            session.Move(Direction.Left);
+            session.Restart();
+            Assert.AreEqual(1, session.StarsIfCleared);
+        }
+
+        [Test]
+        public void HintsRevealEachRecipeColorOnceThenStop()
+        {
+            var session = new GameSession(TestStages.Basic()); // target YB
+            Assert.IsTrue(session.CanRevealColor);
+            int first = session.RevealColor(new Random(3));
+            int second = session.RevealColor(new Random(3));
+            CollectionAssert.AreEquivalent(new[] { Palette.IndexOf('Y'), Palette.IndexOf('B') }, new[] { first, second });
+            CollectionAssert.AreEqual(new[] { first, second }, session.RevealedColors, "in reveal order");
+            Assert.IsFalse(session.CanRevealColor);
+            Assert.AreEqual(-1, session.RevealColor(new Random(3)));
+            Assert.AreEqual(2, session.RevealedColors.Count);
+        }
+
+        [Test]
+        public void HintPicksAmongTheHiddenColorsAtRandom()
+        {
+            var seen = new HashSet<int>();
+            for (int seed = 0; seed < 40; seed++)
+                seen.Add(new GameSession(TestStages.Basic()).RevealColor(new Random(seed)));
+            CollectionAssert.AreEquivalent(new[] { Palette.IndexOf('Y'), Palette.IndexOf('B') }, seen);
+        }
+
+        [Test]
+        public void HintCapsTheStars()
+        {
+            var session = new GameSession(TestStages.BasicScored());
+            session.RevealColor(new Random(1));
+            session.Move(Direction.Up);
+            session.Move(Direction.Right);
             Assert.AreEqual(2, session.Stars);
         }
 
         [Test]
-        public void StepHintCapsTheStars()
+        public void RestartHidesTheHintColors()
         {
-            var session = new GameSession(TestStages.BasicScored());
-            session.MarkStepHint();
-            Assert.IsTrue(session.UsedStepHint);
-            Assert.IsTrue(session.Assisted);
-            session.Move(Direction.Up);
-            session.Move(Direction.Right);
-            Assert.AreEqual(2, session.Stars);
-        }
-
-        [Test]
-        public void StepHintAfterClearingIsIgnored()
-        {
-            var session = new GameSession(TestStages.BasicScored());
-            session.Move(Direction.Up);
-            session.Move(Direction.Right);
-            session.MarkStepHint();
-            Assert.IsFalse(session.UsedStepHint);
-            Assert.AreEqual(3, session.Stars);
-        }
-
-        [Test]
-        public void RestartForgetsAssists()
-        {
-            var session = new GameSession(TestStages.BasicScored());
+            var session = new GameSession(TestStages.Basic());
+            session.RevealColor(new Random(1));
             session.Move(Direction.Left);
-            session.Undo();
-            session.MarkStepHint();
             session.Restart();
-            Assert.IsFalse(session.UsedUndo);
-            Assert.IsFalse(session.UsedStepHint);
-            session.Move(Direction.Up);
-            session.Move(Direction.Right);
-            Assert.AreEqual(3, session.Stars);
+            Assert.AreEqual(0, session.RevealedColors.Count);
+            Assert.IsFalse(session.UsedHint);
+            Assert.IsTrue(session.CanRevealColor);
         }
 
         [Test]
-        public void GrantedUndosCanBeUsedAndStillCapTheStars()
-        {
-            var session = new GameSession(TestStages.BasicScored());
-            for (int i = 0; i < GameSession.UndoAllowance; i++)
-            {
-                session.Move(Direction.Left);
-                Assert.IsTrue(session.Undo());
-            }
-            session.Move(Direction.Left);
-            Assert.AreEqual(0, session.UndosRemaining);
-            Assert.IsFalse(session.CanUndo, "out of undos");
-
-            session.GrantUndos(0);
-            session.GrantUndos(-2);
-            Assert.AreEqual(0, session.UndosRemaining, "non-positive grants are ignored");
-
-            int history = session.HistoryCount;
-            session.GrantUndos(3);
-            Assert.AreEqual(3, session.UndosRemaining);
-            Assert.AreEqual(history, session.HistoryCount, "granting keeps the history");
-            Assert.IsTrue(session.UsedUndo, "granting keeps the undo use");
-            Assert.IsTrue(session.Undo());
-            Assert.AreEqual(2, session.UndosRemaining);
-            session.Move(Direction.Up);
-            session.Move(Direction.Right);
-            Assert.AreEqual(2, session.Stars, "still assisted");
-
-            session.Restart();
-            Assert.AreEqual(GameSession.UndoAllowance, session.UndosRemaining, "restart refills to the allowance");
-        }
-
-        [Test]
-        public void GrantingUndosIsNotAnAssist()
-        {
-            var session = new GameSession(TestStages.BasicScored());
-            session.GrantUndos(3);
-            Assert.AreEqual(GameSession.UndoAllowance + 3, session.UndosRemaining);
-            Assert.IsFalse(session.UsedUndo);
-            Assert.AreEqual(0, session.HistoryCount);
-            session.Move(Direction.Up);
-            session.Move(Direction.Right);
-            Assert.AreEqual(3, session.Stars);
-        }
-
-        [Test]
-        public void HistoryListsEarlierStatesMostRecentFirst()
+        public void NoHintAfterClearing()
         {
             var session = new GameSession(TestStages.Basic());
             session.Move(Direction.Up);
-            session.Move(Direction.Down);
-            Assert.AreEqual(2, session.HistoryCount);
-            CollectionAssert.AreEqual(new[] { 1, session.Stage.StartIndex }, session.History.Select(s => s.Position).ToArray());
+            session.Move(Direction.Right);
+            Assert.IsFalse(session.CanRevealColor);
+            Assert.AreEqual(-1, session.RevealColor(new Random(1)));
+            Assert.AreEqual(3, session.Stars);
+        }
+
+        [Test]
+        public void MixOrderFollowsEatingAndEmptiesAtAGate()
+        {
+            var basic = new GameSession(TestStages.Basic());
+            basic.Move(Direction.Left);  // Y
+            basic.Move(Direction.Right); // back to the start: floor
+            basic.Move(Direction.Up);    // Y
+            CollectionAssert.AreEqual(new[] { Palette.IndexOf('Y'), Palette.IndexOf('Y') }, basic.MixOrder);
+
+            var gate = new GameSession(TestStages.WithGate());
+            gate.Move(Direction.Right); // R
+            gate.Move(Direction.Left);
+            gate.Move(Direction.Down);  // Y
+            CollectionAssert.AreEqual(new[] { Palette.IndexOf('R'), Palette.IndexOf('Y') }, gate.MixOrder);
+            gate.Move(Direction.Up);
+            Assert.AreEqual(MoveOutcome.PassedGate, gate.Move(Direction.Left));
+            Assert.AreEqual(0, gate.MixOrder.Count);
         }
     }
 
@@ -582,185 +581,6 @@ namespace Cameli.Tests
             Assert.Throws<SearchLimitException>(() => Solver.Solve(stage, maxStates: 5));
             Assert.AreEqual(SearchResult.Found, Solver.TrySolve(stage, BoardState.Initial(stage), out solution));
             Assert.AreEqual(7, solution.Moves);
-        }
-    }
-
-    public class HintTests
-    {
-        [Test]
-        public void FollowingNextStepHintsClearsInTheOptimalMoves()
-        {
-            var session = new GameSession(TestStages.Door());
-            while (!session.IsCleared && session.State.Moves < 20)
-            {
-                Hint hint = Hints.Next(session);
-                Assert.AreEqual(HintKind.NextStep, hint.Kind);
-                Assert.IsTrue(session.Move(hint.Direction).IsMove());
-            }
-            Assert.IsTrue(session.IsCleared);
-            Assert.AreEqual(7, session.State.Moves);
-        }
-
-        [Test]
-        public void NextStepAfterAWrongTurnStillLeadsToAClear()
-        {
-            var session = new GameSession(TestStages.Basic());
-            session.Move(Direction.Down);
-            Hint hint = Hints.Next(session);
-            Assert.AreEqual(HintKind.NextStep, hint.Kind);
-            Assert.AreEqual(Direction.Left, hint.Direction, "yellow below the start, then the blue beside it");
-            Assert.AreEqual(MoveOutcome.Cleared, session.Move(hint.Direction));
-        }
-
-        [Test]
-        public void DeadEndReportsTheFewestUndos()
-        {
-            // Two reds leave no way to the target red 1 + blue 1; the state two moves back (one red) has one.
-            var session = new GameSession(TestStages.Ratio());
-            session.Move(Direction.Up);
-            session.Move(Direction.Left);
-            session.Move(Direction.Right);
-            Hint hint = Hints.Next(session);
-            Assert.AreEqual(HintKind.Stuck, hint.Kind);
-            Assert.AreEqual(2, hint.UndosNeeded);
-            Assert.IsTrue(hint.UndoWithinReach);
-
-            for (int i = 0; i < hint.UndosNeeded; i++) session.Undo();
-            Assert.AreEqual(HintKind.NextStep, Hints.Next(session).Kind);
-        }
-
-        [Test]
-        public void DeadEndBeyondTheRemainingUndosSaysRestart()
-        {
-            var session = new GameSession(TestStages.Ratio());
-            session.Move(Direction.Up);
-            session.Move(Direction.Left);
-            session.Move(Direction.Right);
-            session.Move(Direction.Left);
-            session.Undo();
-            session.Move(Direction.Left);
-            session.Undo();
-            Assert.AreEqual(1, session.UndosRemaining);
-            Hint hint = Hints.Next(session);
-            Assert.AreEqual(HintKind.Stuck, hint.Kind);
-            Assert.AreEqual(2, hint.UndosNeeded);
-            Assert.IsFalse(hint.UndoWithinReach);
-        }
-
-        [Test]
-        public void DeadEndExactlyAtTheRemainingUndosIsWithinReach()
-        {
-            var session = new GameSession(TestStages.Ratio());
-            session.Move(Direction.Right);
-            session.Undo();
-            session.Move(Direction.Up);
-            session.Move(Direction.Left);
-            session.Move(Direction.Right);
-            Assert.AreEqual(2, session.UndosRemaining);
-            Hint hint = Hints.Next(session);
-            Assert.AreEqual(HintKind.Stuck, hint.Kind);
-            Assert.AreEqual(2, hint.UndosNeeded);
-            Assert.IsTrue(hint.UndoWithinReach, "k equal to the undos left still reaches");
-        }
-
-        [Test]
-        public void NoEarlierClearGivesMinusOne()
-        {
-            var session = new GameSession(TestStages.Make("B", null, "R R R", "R S R", "R R R"));
-            Hint hint = Hints.Next(session);
-            Assert.AreEqual(HintKind.Stuck, hint.Kind, "no history at all");
-            Assert.AreEqual(-1, hint.UndosNeeded);
-            Assert.IsFalse(hint.UndoWithinReach);
-
-            session.Move(Direction.Up);
-            session.Move(Direction.Down);
-            hint = Hints.Next(session);
-            Assert.AreEqual(HintKind.Stuck, hint.Kind);
-            Assert.AreEqual(-1, hint.UndosNeeded, "no earlier state of the attempt has a clear");
-            Assert.IsFalse(hint.UndoWithinReach);
-        }
-
-        [Test]
-        public void DeadEndPastAGateUndoesBackOverTheGate()
-        {
-            // Y # #
-            // g0 S R     g0 = red gate (red 1); target red 1 + blue 1
-            // # B #
-            // Spending the only red on the gate leaves no way to the target; the fix is before the gate.
-            var session = new GameSession(TestStages.Make("RB", new[] { "R" }, "Y # #", "g0 S R", "# B #"));
-            session.Move(Direction.Right);
-            session.Move(Direction.Left);
-            Assert.AreEqual(MoveOutcome.PassedGate, session.Move(Direction.Left));
-            Assert.AreEqual(MoveOutcome.Ate, session.Move(Direction.Up));
-
-            Hint hint = Hints.Next(session);
-            Assert.AreEqual(HintKind.Stuck, hint.Kind);
-            Assert.AreEqual(2, hint.UndosNeeded, "back past the gate cell, to the start holding red");
-            Assert.IsTrue(hint.UndoWithinReach);
-
-            for (int i = 0; i < hint.UndosNeeded; i++) session.Undo();
-            Assert.AreEqual(session.Stage.StartIndex, session.State.Position);
-            Assert.AreEqual("R", session.State.Drops.ToString(), "the undo gives back what the gate took");
-            hint = Hints.Next(session);
-            Assert.AreEqual(HintKind.NextStep, hint.Kind);
-            Assert.AreEqual(Direction.Down, hint.Direction);
-        }
-
-        [Test]
-        public void SearchCapDuringTheHistoryScanGivesNoHint()
-        {
-            // Ratio dead end: the current state has 3 reachable states, the earlier ones more; 4 states in all
-            // finish the first search but not the scan back through the history, which shares the budget.
-            var session = new GameSession(TestStages.Ratio());
-            session.Move(Direction.Up);
-            session.Move(Direction.Left);
-            session.Move(Direction.Right);
-            const int budget = 4;
-            Assert.AreEqual(SearchResult.Unsolvable, Solver.TrySolve(session.Stage, session.State, out _, maxStates: budget),
-                "the current state alone fits the budget");
-            Assert.AreEqual(HintKind.SearchLimit, Hints.Next(session, budget).Kind);
-            Assert.AreEqual(HintKind.Stuck, Hints.Next(session).Kind, "with the default budget it is a dead end");
-        }
-
-        [Test]
-        public void OverfilledStateIsADeadEnd()
-        {
-            var session = new GameSession(TestStages.Ratio());
-            session.Move(Direction.Up);
-            session.Move(Direction.Left);
-            session.Move(Direction.Right);
-            session.Move(Direction.Right);
-            Assert.IsTrue(Rules.IsOverfilled(session.Stage, session.State), "RRB for a two-drop target");
-
-            Hint hint = Hints.Next(session);
-            Assert.AreEqual(HintKind.Stuck, hint.Kind);
-            Assert.AreEqual(3, hint.UndosNeeded, "back to a single red");
-            Assert.IsTrue(hint.UndoWithinReach);
-        }
-
-        [Test]
-        public void ClearedSessionNeedsNoHint()
-        {
-            var session = new GameSession(TestStages.Basic());
-            session.Move(Direction.Up);
-            session.Move(Direction.Right);
-            Assert.AreEqual(HintKind.AlreadyCleared, Hints.Next(session).Kind);
-        }
-
-        [Test]
-        public void SearchCapGivesNoHint()
-        {
-            var session = new GameSession(TestStages.Door());
-            Assert.AreEqual(HintKind.SearchLimit, Hints.Next(session, maxStates: 5).Kind);
-        }
-
-        [Test]
-        public void HintsDoNotChangeTheSession()
-        {
-            var session = new GameSession(TestStages.Door());
-            Hints.Next(session);
-            Assert.IsFalse(session.UsedStepHint);
-            Assert.AreEqual(0, session.State.Moves);
         }
     }
 

@@ -132,6 +132,12 @@ namespace Cameli.Core
         /// </summary>
         public const double AmbiguityThreshold = 10;
 
+        /// <summary>
+        /// Extra moves over the optimum that the near-clear count and the random walk allow: a slightly sloppy clear.
+        /// (It was the two-star window when stars came from moves.)
+        /// </summary>
+        public const int NearSlack = 2;
+
         /// <summary>Runs every check on <paramref name="file"/>.</summary>
         /// <exception cref="StageFormatException">The file is not a valid stage.</exception>
         /// <exception cref="SearchLimitException">The board is too big or complex for the solver's state cap.</exception>
@@ -158,7 +164,7 @@ namespace Cameli.Core
             report.TargetDeltaE = NearestWrong(stage, out report.TargetNearest);
             report.GateDeltaE = NearestWrongGate(stage, out report.GateNearest);
             report.TileDeltaE = MinTileDeltaE(stage);
-            report.WalkClear = RandomWalkClear(stage, solution.Moves + Scoring.TwoStarSlack);
+            report.WalkClear = RandomWalkClear(stage, solution.Moves + NearSlack);
             report.StartReturns = CountStartReturns(stage, solution);
             report.GatesExact = GatesPassedExactly(stage, solution);
             if (stage.Gates.Count == 0) report.GateUse = GateUse.None;
@@ -231,7 +237,7 @@ namespace Cameli.Core
             BoardState start = BoardState.Initial(stage);
             var seen = new HashSet<(int, ulong, DropCounts)> { (start.Position, start.Eaten, start.Drops) };
             var frontier = new List<BoardState> { start };
-            for (int depth = 1; depth <= optimal + Scoring.TwoStarSlack && frontier.Count > 0; depth++)
+            for (int depth = 1; depth <= optimal + NearSlack && frontier.Count > 0; depth++)
             {
                 var next = new List<BoardState>();
                 foreach (BoardState state in frontier)

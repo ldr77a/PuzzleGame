@@ -11,7 +11,7 @@ Unity **6000.3.26f1** (Unity 6) 2D color-mixing puzzle game. The player walks a 
 The architecture described below is the *current, pre-rework* prototype. Where it conflicts with the design doc, the design doc is the target. Examples of current behavior that the design replaces:
 - Space to collect → stepping on a tile eats it
 - empty tiles → every tile is colored
-- reset tiles → removed (unlimited restart + limited undo)
+- reset tiles → removed (unlimited restart; no undo)
 - move limits → none (stars instead)
 - dashboard in the game scene → split out into a dev-only tool
 
@@ -51,8 +51,9 @@ Phase 1 (the Unity prototype) is done on a separate git branch.
     - Clearing, and passing a gate, need the color (±2) **and** the exact drop count (`Rules.Meets`). Ratio multiples don't count.
     - `Rules.IsOverfilled` flags a mix with more drops than any recipe on the stage. The solver prunes those states.
     - A passed gate leaves the player standing on the gate cell. Stepping back out the same side with an empty mix is allowed by design, so stages must need the gate as a door; `lab.sh check` verifies this.
-  - `GameSession` adds undo (3 per attempt; `GrantUndos` adds more, the ad reward) and restart, which also refills the undos. Using an undo or a "next step" hint caps the attempt at ★★ (`UsedUndo`, `UsedStepHint`, `Scoring.Stars(moves, optimal, assisted)`); restart clears both.
-  - `Solver` is a BFS for shortest clears, from the initial board or any `BoardState`. Tooling and tests run it capped at `Solver.DefaultMaxStates` (2,000,000) states; at runtime only `Hints.Next(session)` runs it, capped at `Hints.DefaultMaxStates` states.
+  - `GameSession` is one visit to a stage. There is no undo. `Restart()` ("다시 하기") goes back to the start and counts in `Restarts` only after a move (otherwise it does nothing); `StartOver()` begins a fresh visit (entering, or replaying a cleared stage). Stars come from restarts only: `Scoring.Stars(restarts, hinted)` gives 3/2/1 for 0/1/2+ restarts, capped at ★★ when the attempt used a hint. Moves don't count.
+  - Hints: `RevealColor(Random)` reveals a random recipe color the attempt hasn't revealed (no drop count); `RevealedColors` and `UsedHint` reset on restart. `MixOrder` is the eating order of the current mix, for the goal card.
+  - `Solver` is a BFS for shortest clears, from the initial board or any `BoardState`, capped at `Solver.DefaultMaxStates` (2,000,000) states. Tooling and tests only; the game never runs it.
   - Colors are `Rgb`/`DropCounts`. `ColorMath` reproduces the legacy `ColorMixer` math.
   - `StageAudit.Audit(StageFile)` returns a `StageReport` (solvable, optimal vs stored, gate use, exact gate recipes, ambiguity ΔE, tile ΔE, walk%) with `StageProblems` flags. Tooling only: `lab.sh check` and the "Cameli/스테이지 검증" menu.
   - `StageSections.All` lists the difficulty folders in play order with their garden headings; `StageDefinition.Section` is the index of the folder a stage was loaded from. Unity can't list Resources folders at runtime, so a new folder must be added there.
@@ -66,14 +67,14 @@ Phase 1 (the Unity prototype) is done on a separate git branch.
   - **Phase 2 app (`GardenApp`, scene `Garden.unity`)** follows `docs/2단계 화면 명세.md`. `GardenApp` builds everything in code and routes Title → Garden → Play, with `MenuSheet`, `GrantPopup` (reward placeholder, marked `// 4단계: 보상형 광고`), and `PlaytestPanel` on top; Escape (Android back) closes the top window first. The screens live in `Game/Screens/`:
     - `TitleScreen`, `GardenScreen` (scrolling 4-column stage bed, one section per difficulty folder; also decides the next stage and "이어하기"), `PlayScreen` (session, input buffering, hints, guides, feedback, playtest log; same attempt boundaries as `CameliGame`), `PlayHud` + `GoalCard` (everything around the board), `ClearView` (bloom sequence, tap to skip).
     - `Widgets` holds the shared card/button/star helpers; `Sway`, `Blink`, `SlideIn` are tiny unscaled-time animators.
-    - `BoardView.FigureToken` draws the token as `CameliFigure`; `ShowGlow`, `ShowArrow`, `ShowSwipe` draw the tutorial/hint guides. `CameliGame` leaves them off.
-    - `HintStore` keeps the shared hint count (`cameli.hints`, starts at 3) and per-stage recipe reveals (`cameli.recipe.{id}`). `Progress.ResetAll` (next tester) clears them too.
+    - `BoardView.FigureToken` draws the token as `CameliFigure`; `ShowGlow` and `ShowSwipe` draw the tutorial guides and `ShowBlink(color)` blinks the hinted color's cells until the next move. `CameliGame` leaves them off.
+    - `HintStore` keeps today's free hints (`cameli.hints` + `cameli.hints.day`, 3 per local day, no carry-over). With none left, the hint button offers `GrantPopup`, and the "ad" uses a hint on the spot. `Progress.ResetAll` (next tester) clears it too.
     - Jua lacks "·", arrows, and similar symbols: keep UI strings to Hangul, Latin, digits, and ★, and draw icons with `SpriteFactory`.
 - **Stage files** live in `Assets/Resources/CameliStages/<folder>/stage_NN.json`, matching `StageFile` in `Core/Stage.cs`:
   - The folder is the difficulty and the garden section: `0_Tutorial` (1–5), `1_Easy` (6–45), `2_Medium` (46–49 so far), `3_Hard` (empty, kept by `.gitkeep`). Files outside these folders are not loaded.
   - `rows`: space-separated tokens, top row first. Color letters are `R O Y G B N P`. `S` is the start (must be the center cell; on even sizes, the top-left of the central 2×2), `#` is a wall, `gN` is a gate.
   - `target`, `gates`: recipe strings such as `"RRY"`.
-  - `optimalMoves`: from the solver.
+  - `optimalMoves`: from the solver. Not used for stars any more; it measures difficulty and the audit checks it.
   - Optional tutorial fields: `focus` (`[x, y]`, column and row from the top; the cell glows before the first move) and `swipe` (`"up"`, `"down"`, `"left"`, `"right"`).
   - Ids must run 1..n across all folders, in folder order (every tutorial id < every Easy id < …), so adding a stage anywhere but the end of the last used folder means renumbering. Moving files from the shell needs their `.meta` too.
   - The user's Korean editing guide is [`docs/스테이지 수정 방법.md`](docs/스테이지%20수정%20방법.md); keep it in sync when the format, rules, or audit change.

@@ -54,5 +54,15 @@ namespace Cameli.Game
             }
             return builder.ToString();
         }
+
+        /// <summary>The word with the subject particle its last syllable takes: "빨강이", "보라가".</summary>
+        public static string WithSubjectParticle(string word)
+        {
+            if (string.IsNullOrEmpty(word)) return word;
+            char last = word[word.Length - 1];
+            bool hangul = last >= '\uAC00' && last <= '\uD7A3';
+            bool finalConsonant = hangul && (last - '\uAC00') % 28 != 0;
+            return word + (finalConsonant ? "이" : "가");
+        }
     }
 }

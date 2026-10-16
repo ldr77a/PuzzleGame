@@ -7,7 +7,7 @@ namespace Cameli.Game
 {
     /// <summary>
     /// Everything on the play screen around the board (Phase 2 spec §2): top bar, goal card, Cameli's speech
-    /// bubble, the info row, the message line, and the undo and hint buttons. <see cref="BoardTop"/> and
+    /// bubble, the info row, the message line, and the restart and hint buttons. <see cref="BoardTop"/> and
     /// <see cref="BoardBottom"/> say how much the board area leaves free.
     /// </summary>
     sealed class PlayHud
@@ -27,27 +27,22 @@ namespace Cameli.Game
         readonly GoalCard card;
         readonly RectTransform bubble;
         readonly Text bubbleText;
-        readonly Text movesLabel;
-        readonly Text optimalLabel;
+        readonly Text restartsLabel;
+        readonly Image[] previewStars;
         readonly Text messageLabel;
-        readonly Text undoLabel;
         readonly Text hintLabel;
-        readonly Button undoButton;
+        readonly Button restartButton;
         float messageLeft;
 
         /// <summary>Canvas units from the top of the safe area to the board area, which depends on the bubble.</summary>
         public float BoardTop => bubble.gameObject.activeSelf ? BubbleTop + BubbleHeight + 24f : BubbleTop;
 
-        public GoalCard Card => card;
-
-        public PlayHud(RectTransform root, Action openMenu, Action restart, Action openPlaytest, Action undo, Action hint)
+        public PlayHud(RectTransform root, Action openMenu, Action openPlaytest, Action restart, Action hint)
         {
-            // Top bar: [menu] title [restart]
+            // Top bar: [menu] title. The right side stays empty so the title stays centered.
             RectTransform bar = Ui.TopStrip(Ui.NewRect("Top Bar", root), TopBarTop, TopBarHeight, Side);
             Button menuButton = Widgets.IconButton(bar, "Menu", SpriteFactory.MenuIcon, openMenu);
             Ui.Box(menuButton.GetComponent<RectTransform>(), new Vector2(0f, 0.5f), Vector2.zero, new Vector2(TopBarHeight, TopBarHeight));
-            Button restartButton = Widgets.IconButton(bar, "Restart", SpriteFactory.RestartIcon, restart);
-            Ui.Box(restartButton.GetComponent<RectTransform>(), new Vector2(1f, 0.5f), Vector2.zero, new Vector2(TopBarHeight, TopBarHeight));
             title = Widgets.Label(bar, "Title", "", 50, Theme.Ink);
             title.horizontalOverflow = HorizontalWrapMode.Wrap;
             title.verticalOverflow = VerticalWrapMode.Truncate;
@@ -62,17 +57,17 @@ namespace Cameli.Game
 
             bubble = BuildBubble(root, out bubbleText);
 
-            // Info row: 걸음 N ........ (★★★ M걸음)
+            // Info row: 다시 하기 N번 ........ (지금 깨면 ★★★)
             RectTransform info = Ui.BottomStrip(Ui.NewRect("Info", root), 290f, 90f, Side + 12f);
-            movesLabel = Widgets.Label(info, "Moves", "", 46, Theme.Ink, TextAnchor.MiddleLeft);
-            Ui.Stretch(movesLabel.rectTransform);
-            Image pill = Widgets.Card(info, "Optimal");
+            restartsLabel = Widgets.Label(info, "Restarts", "", 46, Theme.Ink, TextAnchor.MiddleLeft);
+            Ui.Stretch(restartsLabel.rectTransform);
+            Image pill = Widgets.Card(info, "Stars If Cleared");
             Widgets.Round(pill, 40f);
-            Ui.Box(pill.rectTransform, new Vector2(1f, 0.5f), Vector2.zero, new Vector2(330f, 80f));
-            RectTransform starBox = Ui.Box(Ui.NewRect("Stars", pill.transform), new Vector2(0f, 0.5f), new Vector2(28f, 0f), new Vector2(140f, 44f));
-            Widgets.SetStars(Widgets.Stars(starBox, 3, 42f, 6f), 3);
-            optimalLabel = Widgets.Label(pill.transform, "Label", "", 38, Theme.ButtonInk, TextAnchor.MiddleRight);
-            Ui.Stretch(optimalLabel.rectTransform, 170f, 0f, 30f, 0f);
+            Ui.Box(pill.rectTransform, new Vector2(1f, 0.5f), Vector2.zero, new Vector2(400f, 80f));
+            Text pillLabel = Widgets.Label(pill.transform, "Label", "지금 깨면", 38, Theme.ButtonInk, TextAnchor.MiddleLeft);
+            Ui.Stretch(pillLabel.rectTransform, 30f, 0f, 190f, 0f);
+            RectTransform starBox = Ui.Box(Ui.NewRect("Stars", pill.transform), new Vector2(1f, 0.5f), new Vector2(-28f, 0f), new Vector2(140f, 44f));
+            previewStars = Widgets.Stars(starBox, 3, 42f, 6f);
 
             messageLabel = Widgets.Label(root, "Message", "", 36, Theme.Accent);
             messageLabel.verticalOverflow = VerticalWrapMode.Truncate;
@@ -81,35 +76,33 @@ namespace Cameli.Game
             messageLabel.resizeTextMaxSize = 36;
             Ui.BottomStrip(messageLabel.rectTransform, 192f, 92f, Side);
 
-            // Bottom bar: [undo n] [hint n]
+            // Bottom bar: [다시 하기] [힌트 n]
             RectTransform bottom = Ui.BottomStrip(Ui.NewRect("Bottom Bar", root), 40f, 140f, Side);
-            undoButton = Widgets.Button(bottom, "Undo", "", 44, false, undo, out undoLabel, SpriteFactory.UndoIcon, sound: null);
-            Half(undoButton, 0f);
+            restartButton = Widgets.Button(bottom, "Restart", "다시 하기", 44, false, restart, out _, SpriteFactory.RestartIcon, sound: null);
+            Half(restartButton, 0f);
             Button hintButton = Widgets.Button(bottom, "Hint", "", 44, false, hint, out hintLabel, SpriteFactory.BulbIcon);
             Half(hintButton, 1f);
         }
 
-        public void SetStage(StageDefinition stage, bool recipeRevealed)
+        public void SetStage(StageDefinition stage)
         {
             // Jua has no "·", so the number and the name are joined with a period.
             title.text = $"{stage.Id}. {stage.Title}";
-            optimalLabel.text = $"{stage.OptimalMoves}걸음";
             bubbleText.text = stage.Hint;
             bubble.gameObject.SetActive(!string.IsNullOrEmpty(stage.Hint));
-            card.SetStage(stage, recipeRevealed);
+            card.SetStage(stage);
             ShowMessage("");
         }
 
         public void Refresh(GameSession session)
         {
             card.Refresh(session);
-            movesLabel.text = $"걸음 {session.State.Moves}";
-            int undos = session.UndosRemaining;
-            undoLabel.text = undos == 0 ? "받기" : $"되돌리기 {undos}";
-            // At zero the button offers more undos, so it stays pressable; otherwise it needs a move to take back.
-            undoButton.interactable = !session.IsCleared && (undos == 0 || session.HistoryCount > 0);
+            restartsLabel.text = $"다시 하기 {session.Restarts}번";
+            Widgets.SetStars(previewStars, session.StarsIfCleared);
+            // Before the first move there is nothing to start over (and pressing it would change nothing).
+            restartButton.interactable = session.CanRestart;
             int hints = HintStore.Count;
-            hintLabel.text = hints == 0 ? "받기" : $"힌트 {hints}";
+            hintLabel.text = hints == 0 ? "광고 보고 힌트" : $"힌트 {hints}";
         }
 
         /// <summary>Shows a line between the board and the buttons for a few seconds; "" clears it.</summary>

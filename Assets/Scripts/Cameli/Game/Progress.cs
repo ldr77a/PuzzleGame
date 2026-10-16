@@ -59,8 +59,8 @@ namespace Cameli.Game
         }
 
         /// <summary>
-        /// Forgets unlocks, stars, the last stage played, the hint inventory, and revealed recipes
-        /// (<see cref="HintStore"/>), for handing the device to the next playtester.
+        /// Forgets unlocks, stars, the last stage played, and today's hint count (<see cref="HintStore"/>), for
+        /// handing the device to the next playtester.
         /// </summary>
         public static void ResetAll(IEnumerable<int> stageIds)
         {
@@ -68,7 +68,7 @@ namespace Cameli.Game
             PlayerPrefs.DeleteKey(UnlockedKey);
             PlayerPrefs.DeleteKey(LastPlayedKey);
             foreach (int id in ids) PlayerPrefs.DeleteKey(StarsKeyPrefix + id);
-            HintStore.ResetAll(ids);
+            HintStore.ResetAll();
             PlayerPrefs.Save();
         }
     }

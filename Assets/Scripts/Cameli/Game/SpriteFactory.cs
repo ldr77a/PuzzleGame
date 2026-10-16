@@ -19,7 +19,7 @@ namespace Cameli.Game
         static Sprite roundedFrame, dashedRing;
         static Sprite flowerOuter, flowerInner, bud, sepal;
         static Sprite crest, crestOutline, tail, tailOutline;
-        static Sprite menuIcon, restartIcon, undoIcon, bulbIcon, gridIcon, playIcon, lockIcon, backIcon;
+        static Sprite menuIcon, restartIcon, bulbIcon, gridIcon, playIcon, lockIcon, backIcon;
 
         /// <summary>Rounded square, 9-sliced so it can stretch to any size.</summary>
         public static Sprite RoundedRect => roundedRect != null ? roundedRect : roundedRect = Make("RoundedRect", 64, 22, RoundedRectAlpha);
@@ -68,9 +68,6 @@ namespace Cameli.Game
 
         /// <summary>Clockwise circular arrow.</summary>
         public static Sprite RestartIcon => restartIcon != null ? restartIcon : restartIcon = MakeShape("Restart Icon", 128, RestartShape);
-
-        /// <summary>U-turn arrow pointing back (left).</summary>
-        public static Sprite UndoIcon => undoIcon != null ? undoIcon : undoIcon = MakeShape("Undo Icon", 128, UndoShape);
 
         public static Sprite BulbIcon => bulbIcon != null ? bulbIcon : bulbIcon = MakeShape("Bulb Icon", 128, BulbShape);
 
@@ -196,14 +193,6 @@ namespace Cameli.Game
             Vector2 forward = new Vector2(Mathf.Sin(end * Mathf.Deg2Rad), -Mathf.Cos(end * Mathf.Deg2Rad));
             Vector2 outward = at.normalized;
             return Mathf.Min(d, Polygon(p, new[] { at + outward * 0.27f, at + forward * 0.3f, at - outward * 0.27f }));
-        }
-
-        static float UndoShape(Vector2 p)
-        {
-            float d = Polygon(p, new[] { new Vector2(-0.8f, 0.25f), new Vector2(-0.38f, -0.12f), new Vector2(-0.38f, 0.62f) });
-            d = Mathf.Min(d, Segment(p, new Vector2(-0.45f, 0.25f), new Vector2(0.2f, 0.25f), IconStroke));
-            d = Mathf.Min(d, Arc(p, new Vector2(0.2f, -0.12f), 0.37f, -90f, 90f, IconStroke));
-            return Mathf.Min(d, Segment(p, new Vector2(0.2f, -0.49f), new Vector2(-0.4f, -0.49f), IconStroke));
         }
 
         static float BulbShape(Vector2 p)

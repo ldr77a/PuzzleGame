@@ -6,8 +6,8 @@ using UnityEngine.UI;
 namespace Cameli.Game
 {
     /// <summary>
-    /// Top bar (stage, restart), target/current color, drop count, moves, hint line, message line, and the
-    /// undo button. Built in code inside the safe area.
+    /// Top bar (stage, restart), target/current color, drop count, moves, hint line, and message line. Built in
+    /// code inside the safe area.
     /// </summary>
     sealed class HudView
     {
@@ -22,14 +22,12 @@ namespace Cameli.Game
         readonly Text dropsLabel;
         readonly Text movesLabel;
         readonly Text messageLabel;
-        readonly Text undoLabel;
         readonly Image targetSwatch;
         readonly Image currentSwatch;
         readonly Button previousButton;
         readonly Button nextButton;
-        readonly Button undoButton;
 
-        public HudView(RectTransform root, Action restart, Action undo, Action previous, Action next, Action openPlaytest)
+        public HudView(RectTransform root, Action restart, Action previous, Action next, Action openPlaytest)
         {
             // Top bar: [<] stage title [>] ........ [처음부터]
             RectTransform bar = Ui.TopStrip(Ui.NewRect("Top Bar", root), 24f, 110f, Side);
@@ -56,9 +54,6 @@ namespace Cameli.Game
 
             messageLabel = Ui.NewLabel("Message", root, "", 34, Theme.Accent, TextAnchor.MiddleCenter);
             Ui.BottomStrip(messageLabel.rectTransform, 180f, 100f, Side);
-
-            undoButton = Ui.NewButton("Undo", root, "", 44, Theme.Button, Theme.Ink, undo, out undoLabel);
-            Ui.Box(undoButton.GetComponent<RectTransform>(), new Vector2(0.5f, 0), new Vector2(0, 40), new Vector2(440, 120));
         }
 
         public void SetStage(StageDefinition stage, int index, int count, bool canGoBack, bool canGoForward)
@@ -77,8 +72,6 @@ namespace Cameli.Game
             dropsLabel.text = $"{state.Drops.Total}/{session.Stage.Target.Total}";
             dropsLabel.color = Rules.IsOverfilled(session.Stage, state) ? Theme.Accent : Theme.Ink;
             movesLabel.text = state.Moves.ToString();
-            undoLabel.text = $"되돌리기 {session.UndosRemaining}";
-            undoButton.interactable = session.CanUndo;
         }
 
         public void ShowMessage(string text) => messageLabel.text = text;

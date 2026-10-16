@@ -2,7 +2,7 @@ using System;
 
 namespace Cameli.Core
 {
-    /// <summary>Immutable snapshot of a run. Small enough to copy freely (undo history, solver queue).</summary>
+    /// <summary>Immutable snapshot of a run. Small enough to copy freely (solver queue).</summary>
     public readonly struct BoardState
     {
         public readonly int Position;
@@ -51,7 +51,7 @@ namespace Cameli.Core
 
     public static class MoveOutcomes
     {
-        /// <summary>True when the player actually moved (the move counts and can be undone).</summary>
+        /// <summary>True when the player actually moved (the move counts).</summary>
         public static bool IsMove(this MoveOutcome outcome) => outcome <= MoveOutcome.Cleared;
     }
 
@@ -109,7 +109,7 @@ namespace Cameli.Core
 
         /// <summary>
         /// True when the mix holds more drops than the target and every gate recipe. Drops only grow until a
-        /// gate takes them, so nothing can be cleared or opened any more without undoing or restarting.
+        /// gate takes them, so nothing can be cleared or opened any more without restarting.
         /// </summary>
         public static bool IsOverfilled(StageDefinition stage, in BoardState state) =>
             state.Drops.Total > stage.MaxRecipeDrops;
@@ -124,25 +124,17 @@ namespace Cameli.Core
 
     public static class Scoring
     {
-        /// <summary>Extra moves over the optimum that still earn two stars.</summary>
-        public const int TwoStarSlack = 2;
+        /// <summary>Most stars a clear can earn after a hint in the same attempt.</summary>
+        public const int HintedMaxStars = 2;
 
-        /// <summary>Most stars a clear can earn after using an undo or a "next step" hint in the same attempt.</summary>
-        public const int AssistedMaxStars = 2;
-
-        /// <summary>3 = optimal moves, 2 = within optimal + 2, 1 = any clear.</summary>
-        public static int Stars(int moves, int optimalMoves)
+        /// <summary>
+        /// 3 with no restarts, 2 after one, 1 after more (design doc 3.3); moves don't count. Capped at
+        /// <see cref="HintedMaxStars"/> when <paramref name="hinted"/>.
+        /// </summary>
+        public static int Stars(int restarts, bool hinted)
         {
-            if (optimalMoves <= 0) return 1;
-            if (moves <= optimalMoves) return 3;
-            return moves <= optimalMoves + TwoStarSlack ? 2 : 1;
-        }
-
-        /// <summary>Same as <see cref="Stars(int, int)"/>, capped at <see cref="AssistedMaxStars"/> when <paramref name="assisted"/>.</summary>
-        public static int Stars(int moves, int optimalMoves, bool assisted)
-        {
-            int stars = Stars(moves, optimalMoves);
-            return assisted ? Math.Min(stars, AssistedMaxStars) : stars;
+            int stars = restarts <= 0 ? 3 : restarts == 1 ? 2 : 1;
+            return hinted ? Math.Min(stars, HintedMaxStars) : stars;
         }
     }
 }

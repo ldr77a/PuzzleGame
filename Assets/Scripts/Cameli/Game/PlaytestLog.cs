@@ -13,7 +13,7 @@ namespace Cameli.Game
     /// survives progress resets.
     /// An attempt starts when a stage opens (or is replayed after a clear) and ends on a clear, on leaving the
     /// stage, on a progress reset, or when the app is backgrounded or quits. Restarts in between belong to the
-    /// same attempt. Unfinished attempts with no moves, undos, or restarts are not written.
+    /// same attempt. Unfinished attempts with no moves, hints, or restarts are not written.
     /// </summary>
     sealed class PlaytestLog
     {
@@ -28,12 +28,12 @@ namespace Cameli.Game
 
         const string TesterKey = "cameli.proto.tester";
         const string TesterUsedKey = "cameli.proto.tester.used";
-        const string Header = "tester,stage,result,moves,undos,restarts,seconds,stars,time";
+        const string Header = "tester,stage,result,moves,hints,restarts,seconds,stars,time";
 
         int stageId;
         int startMoves;
         float startedAt;
-        int undos;
+        int hints;
         int restarts;
 
         public static string FilePath => Path.Combine(Application.persistentDataPath, "playtest.csv");
@@ -56,14 +56,14 @@ namespace Cameli.Game
             stageId = id;
             startMoves = movesSoFar;
             startedAt = Time.realtimeSinceStartup;
-            undos = 0;
+            hints = 0;
             restarts = 0;
             IsOpen = true;
         }
 
-        public void CountUndo()
+        public void CountHint()
         {
-            if (IsOpen) undos++;
+            if (IsOpen) hints++;
         }
 
         public void CountRestart()
@@ -75,12 +75,13 @@ namespace Cameli.Game
         {
             if (!IsOpen) return;
             IsOpen = false;
-            if (result != ResultClear && moves == startMoves && undos == 0 && restarts == 0) return; // nothing played
+            if (result != ResultClear && moves == startMoves && hints == 0 && restarts == 0) return; // nothing played
             int seconds = Mathf.RoundToInt(Time.realtimeSinceStartup - startedAt);
             string time = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
-            string row = string.Join(",", Tester, stageId, result, moves, undos, restarts, seconds, stars, time);
+            string row = string.Join(",", Tester, stageId, result, moves, hints, restarts, seconds, stars, time);
             try
             {
+                SetAsideOldFormat();
                 if (!File.Exists(FilePath)) File.WriteAllText(FilePath, Header + "\n");
                 File.AppendAllText(FilePath, row + "\n");
                 PlayerPrefs.SetInt(TesterUsedKey, 1);
@@ -92,12 +93,27 @@ namespace Cameli.Game
             }
         }
 
-        /// <summary>Per tester: stages cleared, tutorial cleared, undos, restarts, and minutes played.</summary>
+        /// <summary>
+        /// Moves a playtest.csv begun by an older build (any other header; the playtest-1 build logged undos where hints
+        /// now go) aside to playtest-old-{time}.csv, so its rows are kept but never summed as hints.
+        /// </summary>
+        static void SetAsideOldFormat()
+        {
+            if (!File.Exists(FilePath)) return;
+            string first;
+            using (var reader = new StreamReader(FilePath)) first = reader.ReadLine();
+            if (first == Header) return;
+            string stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
+            File.Move(FilePath, Path.Combine(Application.persistentDataPath, $"playtest-old-{stamp}.csv"));
+        }
+
+        /// <summary>Per tester: stages cleared, tutorial cleared, hints, restarts, and minutes played.</summary>
         public static string Summary(int stageCount)
         {
             var testers = new SortedDictionary<int, Totals>();
             try
             {
+                SetAsideOldFormat();
                 if (File.Exists(FilePath))
                 {
                     foreach (string line in File.ReadAllLines(FilePath))
@@ -106,7 +122,7 @@ namespace Cameli.Game
                         if (f.Length < 9 || !int.TryParse(f[0], out int tester)) continue; // header or a broken row
                         if (!testers.TryGetValue(tester, out Totals t)) testers[tester] = t = new Totals();
                         if (f[2] == ResultClear && int.TryParse(f[1], out int stage)) t.Cleared.Add(stage);
-                        t.Undos += ParseOrZero(f[4]);
+                        t.Hints += ParseOrZero(f[4]);
                         t.Restarts += ParseOrZero(f[5]);
                         t.Seconds += ParseOrZero(f[6]);
                     }
@@ -125,7 +141,7 @@ namespace Cameli.Game
                 bool tutorial = true;
                 for (int id = 1; id <= TutorialStages; id++) tutorial &= t.Cleared.Contains(id);
                 text.AppendLine($"테스터 {pair.Key}  클리어 {t.Cleared.Count}/{stageCount}, 튜토리얼 {(tutorial ? "통과" : "미통과")}");
-                text.AppendLine($"    되돌리기 {t.Undos}, 재시작 {t.Restarts}, {t.Seconds / 60}분");
+                text.AppendLine($"    힌트 {t.Hints}, 다시 하기 {t.Restarts}, {t.Seconds / 60}분");
             }
             return text.ToString().TrimEnd();
         }
@@ -135,7 +151,7 @@ namespace Cameli.Game
         sealed class Totals
         {
             public readonly HashSet<int> Cleared = new HashSet<int>();
-            public int Undos;
+            public int Hints;
             public int Restarts;
             public int Seconds;
         }

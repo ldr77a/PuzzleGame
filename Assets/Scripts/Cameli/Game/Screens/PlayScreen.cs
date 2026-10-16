@@ -11,23 +11,23 @@ namespace Cameli.Game
     /// <summary>
     /// The Phase 2 play screen: runs a <see cref="GameSession"/> on the board, with the HUD, hints, tutorial
     /// guides, feedback, the clear sequence, and the playtest log (same attempt boundaries as
-    /// <see cref="CameliGame"/>). Editor keys: arrows/WASD move, Z or Backspace undo, R restart, H hint.
+    /// <see cref="CameliGame"/>). Editor keys: arrows/WASD move, R restart ("다시 하기"), H hint.
     /// </summary>
     public sealed class PlayScreen : MonoBehaviour
     {
         const int MaxBufferedMoves = 2;
         const float ClearViewDelay = 0.3f;
-        const string OverfilledMessage = "방울이 너무 많아요. 되돌리기나 처음부터를 눌러 보세요.";
+        const string OverfilledMessage = "방울이 너무 많아요. 다시 하기를 눌러 보세요.";
 
         /// <summary>Board taps right after entering are ignored: the second tap of a double tap on a garden tile or [다음].</summary>
         const float EnterTapGuardSeconds = 0.25f;
 
         readonly Queue<Direction> bufferedMoves = new Queue<Direction>();
         readonly PlaytestLog playtestLog = new PlaytestLog();
+        readonly System.Random hintRandom = new System.Random();
         List<StageDefinition> stages;
         int stageIndex;
         GameSession session;
-        Direction? stepHint;
         float tapsFrom;
 
         PlayHud hud;
@@ -39,7 +39,7 @@ namespace Cameli.Game
         Action openMenu;
         Action openPlaytest;
         Action goToGarden;
-        Action<GrantKind, Action> offerGrant;
+        Action<Action> offerGrant;
         Func<bool> overlayOpen;
 
         StageDefinition Stage => session.Stage;
@@ -55,11 +55,11 @@ namespace Cameli.Game
         /// </summary>
         public bool StageCleared => session != null && session.IsCleared;
 
-        /// <summary>Moves, undo, restart, and hints are accepted: a stage is open with no window over it.</summary>
+        /// <summary>Moves, restart, and hints are accepted: a stage is open with no window over it.</summary>
         bool Interactive => session != null && !clearView.IsVisible && !overlayOpen();
 
         internal static PlayScreen Create(RectTransform parent, List<StageDefinition> stages, Action openMenu,
-            Action openPlaytest, Action goToGarden, Action<GrantKind, Action> offerGrant, Func<bool> overlayOpen)
+            Action openPlaytest, Action goToGarden, Action<Action> offerGrant, Func<bool> overlayOpen)
         {
             RectTransform layer = Widgets.Layer(parent, "Play Screen");
             var screen = layer.gameObject.AddComponent<PlayScreen>();
@@ -76,7 +76,7 @@ namespace Cameli.Game
 
         void Build(RectTransform root)
         {
-            hud = new PlayHud(root, OnMenuPressed, Restart, OnTitleHeld, OnUndoPressed, OnHintPressed);
+            hud = new PlayHud(root, OnMenuPressed, OnTitleHeld, Restart, OnHintPressed);
 
             boardArea = Ui.NewRect("Board Area", root);
             Image boardImage = Widgets.Round(Ui.NewImage("Board", boardArea, SpriteFactory.RoundedRect, Theme.Board), 40f);
@@ -90,10 +90,10 @@ namespace Cameli.Game
             boardInput.Swiped += RequestMove;
             boardInput.Tapped += OnBoardTapped;
 
-            clearView = ClearView.Create(root, Restart, () => goToGarden(), () => Enter(stageIndex + 1));
+            clearView = ClearView.Create(root, Replay, () => goToGarden(), () => Enter(stageIndex + 1));
         }
 
-        /// <summary>Opens a stage: a new attempt, logged from here.</summary>
+        /// <summary>Opens a stage: a new visit (no restarts, no hints), logged from here.</summary>
         internal void Enter(int index)
         {
             if (index < 0 || index >= stages.Count) return;
@@ -108,11 +108,10 @@ namespace Cameli.Game
             session = new GameSession(stages[index]);
             playtestLog.Begin(Stage.Id);
             bufferedMoves.Clear();
-            stepHint = null;
             tapsFrom = Time.unscaledTime + EnterTapGuardSeconds;
             clearView.Hide();
 
-            hud.SetStage(Stage, HintStore.IsRecipeRevealed(Stage.Id));
+            hud.SetStage(Stage);
             Ui.Stretch(boardArea, 40f, PlayHud.BoardBottom, 40f, hud.BoardTop);
             board.Build(Stage, session.State);
             boardInput.Columns = Stage.Width;
@@ -179,12 +178,11 @@ namespace Cameli.Game
                 if (keyboard.downArrowKey.wasPressedThisFrame || keyboard.sKey.wasPressedThisFrame) RequestMove(Direction.Down);
                 if (keyboard.leftArrowKey.wasPressedThisFrame || keyboard.aKey.wasPressedThisFrame) RequestMove(Direction.Left);
                 if (keyboard.rightArrowKey.wasPressedThisFrame || keyboard.dKey.wasPressedThisFrame) RequestMove(Direction.Right);
-                if (keyboard.zKey.wasPressedThisFrame || keyboard.backspaceKey.wasPressedThisFrame) OnUndoPressed();
                 if (keyboard.rKey.wasPressedThisFrame) Restart();
                 if (keyboard.hKey.wasPressedThisFrame) OnHintPressed();
             }
 
-            // Undo, restart, or a hint above may have closed the stage's input; check again before replaying swipes.
+            // A restart or a hint above may have opened a window over the stage; check again before replaying swipes.
             if (Interactive && !board.IsAnimating && bufferedMoves.Count > 0) ApplyMove(bufferedMoves.Dequeue());
         }
 
@@ -212,8 +210,7 @@ namespace Cameli.Game
                 case MoveOutcome.Ate:
                 case MoveOutcome.PassedGate:
                 case MoveOutcome.Cleared:
-                    stepHint = null;
-                    board.ClearGuides();
+                    board.ClearGuides(); // also stops a hint's blinking
                     hud.ShowMessage(outcome == MoveOutcome.PassedGate ? "문이 색을 가져갔어요. 새로 섞어 보세요." : "");
                     board.AnimateMove(from, session.State.Position, () => OnMoveLanded(outcome));
                     break;
@@ -275,139 +272,92 @@ namespace Cameli.Game
             Progress.RecordClear(stageIndex, Stage.Id, stars);
             playtestLog.End(PlaytestLog.ResultClear, moves, stars);
             yield return new WaitForSecondsRealtime(ClearViewDelay);
-            clearView.Show(Theme.ToColor(Stage.TargetColor), stars, moves, Stage.OptimalMoves, CapReason(stars),
+            clearView.Show(Theme.ToColor(Stage.TargetColor), stars, session.Restarts, CapReason(stars),
                 stageIndex < stages.Count - 1);
         }
 
-        /// <summary>The line explaining a star cap, only when the cap actually cost a star.</summary>
+        /// <summary>What cost the missing stars: the restarts, the hint, or both. "" at ★★★.</summary>
         string CapReason(int stars)
         {
-            if (!session.Assisted || Scoring.Stars(session.State.Moves, Stage.OptimalMoves) <= stars) return "";
-            return session.UsedUndo ? "되돌리기 없이 깨면 ★★★" : "힌트 없이 깨면 ★★★";
-        }
-
-        void OnUndoPressed()
-        {
-            if (!Interactive) return;
-            board.CompleteAnimation();
-            bufferedMoves.Clear();
-            if (session == null || session.IsCleared) return; // the landing move may have cleared the stage
-
-            if (session.UndosRemaining == 0)
-            {
-                Sfx.Play(SfxKind.Button);
-                offerGrant(GrantKind.Undo, () =>
-                {
-                    if (session == null || session.IsCleared) return;
-                    session.GrantUndos(GrantPopup.UndoReward);
-                    hud.Refresh(session);
-                });
-                return;
-            }
-
-            if (session.Undo())
-            {
-                Sfx.Play(SfxKind.Undo);
-                playtestLog.CountUndo();
-                stepHint = null;
-                board.Refresh(session.State);
-                board.SnapToken(session.State.Position);
-                hud.Refresh(session);
-                hud.ShowMessage(Rules.IsOverfilled(Stage, session.State) ? OverfilledMessage : "");
-                RefreshGuides();
-            }
-            else
-            {
-                Sfx.Play(SfxKind.Button);
-                hud.ShowMessage("되돌릴 걸음이 없어요.");
-            }
+            if (stars >= 3) return "";
+            if (session.Restarts == 0) return "힌트 없이 깨면 ★★★";
+            return session.UsedHint ? "다시 하기와 힌트 없이 깨면 ★★★" : "다시 하기 없이 깨면 ★★★";
         }
 
         /// <summary>
-        /// First hint on a stage reveals the recipe; later ones show the next step from the current state. A hint
-        /// is only spent when it tells the player something new (spec §6), so the grant popup only comes up when
-        /// a hint would be spent and none are left: the glowing-cell reminder and the stuck and search-limit
-        /// messages are free and show even at 0 hints.
+        /// Shows one recipe color the attempt hasn't revealed yet, picked at random: its cells blink until the next
+        /// move and it stays on the goal card until a restart. Uses one of today's hints, or once they are gone
+        /// offers the ad, which uses the hint right away. Free once every color is revealed (it only says so).
         /// </summary>
         void OnHintPressed()
         {
             if (!Interactive) return;
             board.CompleteAnimation();
             bufferedMoves.Clear();
-            if (session == null || session.IsCleared) return;
+            if (session == null || session.IsCleared) return; // the landing move may have cleared the stage
 
-            if (stepHint.HasValue)
+            if (!session.CanRevealColor)
             {
-                hud.ShowMessage("빛나는 칸으로 가 보세요.");
+                hud.ShowMessage("필요한 색을 모두 알려 줬어요.");
                 return;
             }
-
-            if (!HintStore.IsRecipeRevealed(Stage.Id))
+            if (HintStore.TrySpend())
             {
-                if (HintStore.Count == 0)
-                {
-                    OfferHintGrant();
-                    return;
-                }
-                HintStore.TrySpend();
-                HintStore.RevealRecipe(Stage.Id);
-                hud.Card.ShowRecipe(true);
-                hud.Refresh(session);
-                hud.ShowMessage("목표 레시피예요. 다음 힌트부터는 갈 칸을 알려 줘요.");
+                RevealColor();
                 return;
             }
-
-            Hint hint = Hints.Next(session);
-            switch (hint.Kind)
+            offerGrant(() =>
             {
-                case HintKind.NextStep:
-                    if (HintStore.Count == 0)
-                    {
-                        OfferHintGrant();
-                        return;
-                    }
-                    HintStore.TrySpend();
-                    session.MarkStepHint();
-                    stepHint = hint.Direction;
-                    hud.Refresh(session);
-                    hud.ShowMessage("");
-                    RefreshGuides();
-                    break;
-
-                case HintKind.Stuck:
-                    hud.ShowMessage(hint.UndoWithinReach
-                        ? $"이대로는 못 풀어요. 되돌리기 {hint.UndosNeeded}번 하면 풀 수 있어요"
-                        : "이대로는 못 풀어요. 처음부터 다시 해 보세요");
-                    break;
-
-                case HintKind.SearchLimit:
-                    hud.ShowMessage("지금은 길을 찾지 못했어요");
-                    break;
-            }
-        }
-
-        void OfferHintGrant()
-        {
-            offerGrant(GrantKind.Hint, () =>
-            {
-                HintStore.Add(GrantPopup.HintReward);
-                if (session != null) hud.Refresh(session);
+                if (session != null && session.CanRevealColor) RevealColor();
             });
         }
 
-        /// <summary>A new attempt on the same stage: full undos, no star cap, guides back.</summary>
+        void RevealColor()
+        {
+            int color = session.RevealColor(hintRandom);
+            if (color < 0) return;
+            playtestLog.CountHint();
+            hud.Refresh(session);
+            string name = Palette.Name(color);
+            hud.ShowMessage(board.ShowBlink(color) > 0
+                ? $"{Words.WithSubjectParticle(name)} 필요해요."
+                : $"{Words.WithSubjectParticle(name)} 필요해요. 판에 남은 {name} 칸은 없어요.");
+        }
+
+        /// <summary>
+        /// "다시 하기" during play: back to the start as a new attempt, one more restart on the stars, the hint colors
+        /// hidden again. Nothing happens before the first move, or once cleared: the clear view is on its way, and its
+        /// [다시] replays (<see cref="Replay"/>).
+        /// </summary>
         void Restart()
+        {
+            if (session == null || overlayOpen()) return;
+            board.CompleteAnimation(); // a clearing move still sliding finishes and clears first
+            if (session.IsCleared || !session.Restart()) return;
+            Sfx.Play(SfxKind.Restart);
+            bufferedMoves.Clear();
+            playtestLog.CountRestart();
+            ShowFreshBoard();
+        }
+
+        /// <summary>
+        /// Plays a cleared stage again (the clear view's [다시]): a new visit, so restarts start from zero, and a new
+        /// playtest attempt.
+        /// </summary>
+        void Replay()
         {
             if (session == null || overlayOpen()) return;
             board.CompleteAnimation();
             StopAllCoroutines();
             bufferedMoves.Clear();
-            // Replaying a cleared stage is a new attempt; restarting an unfinished one is part of it.
-            if (playtestLog.IsOpen) playtestLog.CountRestart();
-            else playtestLog.Begin(Stage.Id);
-            session.Restart();
-            stepHint = null;
+            if (!playtestLog.IsOpen) playtestLog.Begin(Stage.Id);
+            session.StartOver();
             clearView.Hide();
+            ShowFreshBoard();
+        }
+
+        void ShowFreshBoard()
+        {
             board.Refresh(session.State);
             board.SnapToken(session.State.Position);
             hud.Refresh(session);
@@ -415,22 +365,11 @@ namespace Cameli.Game
             RefreshGuides();
         }
 
-        /// <summary>
-        /// Shows what should guide the player now: the hinted step (glowing cell and arrow) until the next move;
-        /// otherwise, before the first move, the stage's tutorial focus cell and finger swipe.
-        /// </summary>
+        /// <summary>Before the first move, shows the stage's tutorial focus cell and finger swipe; clears the guides otherwise.</summary>
         void RefreshGuides()
         {
             board.ClearGuides();
-            if (session == null || session.IsCleared) return;
-            int position = session.State.Position;
-            if (stepHint.HasValue)
-            {
-                board.ShowGlow(Neighbor(position, stepHint.Value));
-                board.ShowArrow(position, stepHint.Value);
-                return;
-            }
-            if (session.State.Moves > 0) return;
+            if (session == null || session.IsCleared || session.State.Moves > 0) return;
             if (Stage.FocusIndex >= 0) board.ShowGlow(Stage.FocusIndex);
             if (Stage.Swipe.HasValue) board.ShowSwipe(Stage.StartIndex, Stage.Swipe.Value);
         }

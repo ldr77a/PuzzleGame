@@ -1,34 +1,41 @@
+using System;
 using System.Collections.Generic;
 
 namespace Cameli.Core
 {
     /// <summary>
-    /// One attempt at a stage: applies moves, keeps the undo history, and scores the clear. An attempt starts on
-    /// entering the stage and again on every restart.
+    /// One visit to a stage: applies moves, counts the restarts ("다시 하기") that score the clear, and keeps the
+    /// recipe colors hints revealed in the current attempt. A visit starts on entering the stage and again when a
+    /// cleared stage is replayed (<see cref="StartOver"/>); an attempt starts with the visit and again on every
+    /// <see cref="Restart"/>.
     /// </summary>
     public sealed class GameSession
     {
-        public const int UndoAllowance = 3;
-
-        readonly Stack<BoardState> history = new Stack<BoardState>();
+        readonly List<int> mixOrder = new List<int>();
+        readonly List<int> revealed = new List<int>();
+        readonly List<int> recipeColors = new List<int>();
 
         public StageDefinition Stage { get; }
         public BoardState State { get; private set; }
-        public int UndosRemaining { get; private set; }
 
-        /// <summary>An undo was taken during this attempt; caps the stars (see <see cref="Scoring.AssistedMaxStars"/>).</summary>
-        public bool UsedUndo { get; private set; }
+        /// <summary>Restarts made after at least one move in this visit; they set the stars (<see cref="Scoring.Stars"/>).</summary>
+        public int Restarts { get; private set; }
 
-        /// <summary>A "next step" hint was shown during this attempt; caps the stars. Revealing the recipe does not.</summary>
-        public bool UsedStepHint { get; private set; }
+        /// <summary>Recipe colors (palette indices) revealed by hints in the current attempt, in the order revealed.</summary>
+        public IReadOnlyList<int> RevealedColors => revealed;
 
-        /// <summary>True when this attempt's stars are capped by an undo or a step hint.</summary>
-        public bool Assisted => UsedUndo || UsedStepHint;
+        /// <summary>A hint was used in the current attempt; caps the stars at <see cref="Scoring.HintedMaxStars"/>.</summary>
+        public bool UsedHint => revealed.Count > 0;
+
+        /// <summary>Colors in the current mix in the order they were eaten; a passed gate empties it.</summary>
+        public IReadOnlyList<int> MixOrder => mixOrder;
 
         public GameSession(StageDefinition stage)
         {
             Stage = stage;
-            Restart();
+            for (int color = 0; color < Palette.Count; color++)
+                if (stage.Target[color] > 0) recipeColors.Add(color);
+            StartOver();
         }
 
         public bool IsCleared => State.Cleared;
@@ -36,71 +43,77 @@ namespace Cameli.Core
         /// <summary>The current mix; white while nothing has been eaten.</summary>
         public Rgb CurrentColor => ColorMath.Mix(State.Drops);
 
-        public int Stars => IsCleared ? Scoring.Stars(State.Moves, Stage.OptimalMoves, Assisted) : 0;
-        public bool CanUndo => !IsCleared && UndosRemaining > 0 && history.Count > 0;
+        /// <summary>The stars a clear would earn right now; shown during play.</summary>
+        public int StarsIfCleared => Scoring.Stars(Restarts, UsedHint);
 
-        /// <summary>Number of earlier states kept for undo: the moves made since the attempt started.</summary>
-        public int HistoryCount => history.Count;
+        public int Stars => IsCleared ? StarsIfCleared : 0;
 
-        /// <summary>
-        /// Earlier states of this attempt, most recent first: the first is what <see cref="Undo"/> would restore and
-        /// the last is the initial board. Read-only; undo limits still apply when acting on it.
-        /// </summary>
-        public IEnumerable<BoardState> History
-        {
-            get
-            {
-                foreach (BoardState state in history) yield return state;
-            }
-        }
+        /// <summary>"다시 하기" has something to start over: at least one move in this attempt, and not cleared yet.</summary>
+        public bool CanRestart => !IsCleared && State.Moves > 0;
+
+        /// <summary>A hint can still reveal a recipe color in this attempt.</summary>
+        public bool CanRevealColor => !IsCleared && revealed.Count < recipeColors.Count;
 
         public MoveOutcome Move(Direction direction)
         {
+            DropCounts before = State.Drops;
             MoveOutcome outcome = Rules.Step(Stage, State, direction, out BoardState next);
-            if (outcome.IsMove())
+            if (!outcome.IsMove()) return outcome;
+
+            State = next;
+            DropCounts after = State.Drops;
+            if (after.IsEmpty)
             {
-                history.Push(State);
-                State = next;
+                mixOrder.Clear();
+            }
+            else if (after.Total == before.Total + 1)
+            {
+                for (int color = 0; color < Palette.Count; color++)
+                    if (after[color] == before[color] + 1) mixOrder.Add(color);
             }
             return outcome;
         }
 
-        /// <summary>Takes back the last move, restoring the eaten cell and the previous mix.</summary>
-        public bool Undo()
+        /// <summary>
+        /// "다시 하기": back to the initial board for a new attempt, counted in <see cref="Restarts"/>; the hint colors
+        /// are hidden again. Does nothing (and returns false) before the first move, so it can neither cost a star nor
+        /// hide a hint for free, and once cleared (replay with <see cref="StartOver"/>).
+        /// </summary>
+        public bool Restart()
         {
-            if (!CanUndo) return false;
-            State = history.Pop();
-            UndosRemaining--;
-            UsedUndo = true;
+            if (!CanRestart) return false;
+            Restarts++;
+            ResetAttempt();
             return true;
         }
 
-        /// <summary>
-        /// Adds undos to this attempt (the reward for watching an ad once undos run out). Using them still caps the
-        /// stars; a restart refills to <see cref="UndoAllowance"/> as usual. Ignores counts below one.
-        /// </summary>
-        public void GrantUndos(int count)
+        /// <summary>A new visit: the initial board with no restarts and no hints, as on entering the stage.</summary>
+        public void StartOver()
         {
-            if (count > 0) UndosRemaining += count;
-        }
-
-        /// <summary>Records that a "next step" hint was shown. Ignored once cleared, so it never lowers a scored clear.</summary>
-        public void MarkStepHint()
-        {
-            if (!IsCleared) UsedStepHint = true;
+            Restarts = 0;
+            ResetAttempt();
         }
 
         /// <summary>
-        /// Back to the initial board. Unlimited and free; it also refills undos and forgets the undo and hint use
-        /// that cap the stars, the same as leaving and re-entering the stage would.
+        /// Reveals a random recipe color that this attempt has not revealed yet and returns its palette index; -1 (and
+        /// nothing changes) when every color is revealed or the stage is cleared. Caps the attempt's stars.
         /// </summary>
-        public void Restart()
+        public int RevealColor(Random random)
         {
-            history.Clear();
+            if (!CanRevealColor) return -1;
+            var hidden = new List<int>();
+            foreach (int color in recipeColors)
+                if (!revealed.Contains(color)) hidden.Add(color);
+            int pick = hidden[random.Next(hidden.Count)];
+            revealed.Add(pick);
+            return pick;
+        }
+
+        void ResetAttempt()
+        {
             State = BoardState.Initial(Stage);
-            UndosRemaining = UndoAllowance;
-            UsedUndo = false;
-            UsedStepHint = false;
+            mixOrder.Clear();
+            revealed.Clear();
         }
     }
 }

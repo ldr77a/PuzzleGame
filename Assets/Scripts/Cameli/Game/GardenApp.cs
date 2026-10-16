@@ -127,10 +127,10 @@ namespace Cameli.Game
             menu.Show(page == Page.Play);
         }
 
-        void OfferGrant(GrantKind kind, System.Action granted)
+        void OfferGrant(System.Action granted)
         {
             play.ClearBufferedMoves();
-            grant.Show(kind, granted);
+            grant.Show(granted);
         }
 
         void OpenPlaytest()
@@ -140,8 +140,8 @@ namespace Cameli.Game
         }
 
         /// <summary>
-        /// Hands the device to the next playtester: logs the open attempt, clears progress, stars, hints, and
-        /// revealed recipes, then opens the garden.
+        /// Hands the device to the next playtester: logs the open attempt, clears progress, stars, and today's hint
+        /// count, then opens the garden.
         /// </summary>
         void NextTester()
         {
