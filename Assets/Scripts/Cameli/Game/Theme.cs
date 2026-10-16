@@ -15,7 +15,6 @@ namespace Cameli.Game
         /// <summary>Empty floor, the start cell, and gate cells.</summary>
         public static readonly Color Floor = Hex(0xE9ECE9);
 
-        public static readonly Color Wall = Hex(0x3D4741);
         public static readonly Color Ink = Hex(0x1E2B25);
         public static readonly Color Muted = Hex(0x66736C);
 
@@ -45,6 +44,18 @@ namespace Cameli.Game
         /// <summary>Camellia center and the green of sepals, for the code-drawn flowers and buds.</summary>
         public static readonly Color Pollen = Hex(0xF6CF4A);
         public static readonly Color Leaf = Hex(0x4E8A5E);
+
+        /// <summary>
+        /// Wall cells are a wooden fence (Phase 2 spec §15): planks, rails behind them, and the outline. Muted browns
+        /// kept far from the orange tile (CIELAB ΔE over 45) so a fence never reads as a color.
+        /// </summary>
+        public static readonly Color FencePlank = Hex(0x8C7560);
+        public static readonly Color FenceRail = Hex(0x6E5B4A);
+        public static readonly Color FenceOutline = Hex(0x54453A);
+
+        /// <summary>Camellia leaves around the title and garden screens; never on the play screen, near the tiles.</summary>
+        public static readonly Color LeafDark = Hex(0x3F6B4A);
+        public static readonly Color LeafLight = Hex(0x4E7A56);
 
         /// <summary>Locked stage bud in the garden (its target color stays hidden).</summary>
         public static readonly Color Locked = Hex(0xBFC6C1);

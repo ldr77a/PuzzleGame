@@ -20,6 +20,7 @@ namespace Cameli.Game
         static Sprite flowerOuter, flowerInner, bud, sepal;
         static Sprite crest, crestOutline, tail, tailOutline;
         static Sprite menuIcon, restartIcon, bulbIcon, gridIcon, playIcon, lockIcon, backIcon;
+        static Sprite fencePlanks, fenceRails, fenceOutline, leaf, leafVein;
 
         /// <summary>Rounded square, 9-sliced so it can stretch to any size.</summary>
         public static Sprite RoundedRect => roundedRect != null ? roundedRect : roundedRect = Make("RoundedRect", 64, 22, RoundedRectAlpha);
@@ -60,6 +61,37 @@ namespace Cameli.Game
         public static Sprite CrestOutline => crestOutline != null ? crestOutline : crestOutline = MakeShape("Crest Outline", 128, p => PaddedCrestShape(p) - CameliOutline / CrestPadding);
         public static Sprite Tail => tail != null ? tail : tail = MakeShape("Tail", 128, TailShape);
         public static Sprite TailOutline => tailOutline != null ? tailOutline : tailOutline = MakeShape("Tail Outline", 128, p => TailShape(p) - CameliOutline);
+
+        // Wooden fence for wall cells (Phase 2 spec §15). Layers share one square: outline, rails, then planks.
+        // BoardView bridges the gap between neighboring fence cells with the geometry below.
+
+        /// <summary>Fence rails in normalized units (-1..1, y up): two bars across the whole cell.</summary>
+        public const float FenceUpperRailBottom = 0.167f, FenceUpperRailTop = 0.417f;
+        public const float FenceLowerRailBottom = -0.542f, FenceLowerRailTop = -0.292f;
+
+        /// <summary>The middle plank's half width, the outer planks' outer edge, and the planks' bottom and shoulder (where the point starts).</summary>
+        public const float FenceMiddlePlankHalfWidth = 0.208f;
+        public const float FenceOuterPlankEdge = 0.833f;
+        public const float FencePlankBottom = -0.917f, FencePlankShoulder = 0.583f;
+
+        public const float FenceOutlineWidth = 0.07f;
+
+        /// <summary>Three upright planks with pointed tops.</summary>
+        public static Sprite FencePlanks => fencePlanks != null ? fencePlanks : fencePlanks = MakeShape("Fence Planks", 256, FencePlanksShape);
+
+        /// <summary>Two rails running edge to edge, behind the planks.</summary>
+        public static Sprite FenceRails => fenceRails != null ? fenceRails : fenceRails = MakeShape("Fence Rails", 256, FenceRailsShape);
+
+        /// <summary>Planks and rails grown by the outline width; drawn first, in a darker brown.</summary>
+        public static Sprite FenceOutline => fenceOutline != null ? fenceOutline : fenceOutline =
+            MakeShape("Fence Outline", 256, p => Mathf.Min(FencePlanksShape(p), FenceRailsShape(p)) - FenceOutlineWidth);
+
+        /// <summary>Camellia leaf: a pointed oval, point up, about 35% of the square wide and 80% tall.</summary>
+        public static Sprite Leaf => leaf != null ? leaf : leaf = MakeShape("Leaf", 128, LeafShape);
+
+        /// <summary>The leaf's midrib, drawn over <see cref="Leaf"/> in a lighter tint.</summary>
+        public static Sprite LeafVein => leafVein != null ? leafVein : leafVein =
+            MakeShape("Leaf Vein", 128, p => Segment(p, new Vector2(0f, -0.66f), new Vector2(0f, 0.6f), 0.025f));
 
         // Icons, tinted by Image.color.
 
@@ -194,6 +226,31 @@ namespace Cameli.Game
             Vector2 outward = at.normalized;
             return Mathf.Min(d, Polygon(p, new[] { at + outward * 0.27f, at + forward * 0.3f, at - outward * 0.27f }));
         }
+
+        static float FencePlanksShape(Vector2 p)
+        {
+            float d = float.MaxValue;
+            foreach ((float left, float right) in new[] { (-FenceOuterPlankEdge, -0.333f), (-FenceMiddlePlankHalfWidth, FenceMiddlePlankHalfWidth), (0.333f, FenceOuterPlankEdge) })
+            {
+                float middle = (left + right) / 2f;
+                d = Mathf.Min(d, Polygon(p, new[]
+                {
+                    new Vector2(left, FencePlankBottom), new Vector2(right, FencePlankBottom), new Vector2(right, FencePlankShoulder),
+                    new Vector2(middle, 0.833f), new Vector2(left, FencePlankShoulder),
+                }));
+            }
+            return d;
+        }
+
+        static float FenceRailsShape(Vector2 p)
+        {
+            float upper = Box(p, new Vector2(0f, (FenceUpperRailBottom + FenceUpperRailTop) / 2f), new Vector2(1.2f, (FenceUpperRailTop - FenceUpperRailBottom) / 2f), 0.02f);
+            float lower = Box(p, new Vector2(0f, (FenceLowerRailBottom + FenceLowerRailTop) / 2f), new Vector2(1.2f, (FenceLowerRailTop - FenceLowerRailBottom) / 2f), 0.02f);
+            return Mathf.Min(upper, lower);
+        }
+
+        /// <summary>Where two circles overlap: a lens with points at the top and bottom.</summary>
+        static float LeafShape(Vector2 p) => Mathf.Max(Disk(p, new Vector2(-0.75f, 0f), 1.1f), Disk(p, new Vector2(0.75f, 0f), 1.1f));
 
         static float BulbShape(Vector2 p)
         {

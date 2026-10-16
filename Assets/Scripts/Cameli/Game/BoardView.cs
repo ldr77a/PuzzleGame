@@ -71,6 +71,7 @@ namespace Cameli.Game
                 AddDecoration(cell.transform, stage.CellAt(i));
                 cells.Add(cell);
             }
+            JoinFences();
 
             glow = NewGlow();
 
@@ -104,18 +105,10 @@ namespace Cameli.Game
             for (int i = 0; i < cells.Count; i++)
             {
                 cells[i].rectTransform.localScale = Vector3.one;
-                switch (Rules.VisibleKind(stage, state, i))
-                {
-                    case CellKind.Color:
-                        cells[i].color = Theme.ToColor(Palette.Color(stage.CellAt(i).Color));
-                        break;
-                    case CellKind.Wall:
-                        cells[i].color = Theme.Wall;
-                        break;
-                    default:
-                        cells[i].color = Theme.Floor;
-                        break;
-                }
+                // Everything but an uneaten color tile is plain floor; a wall's fence stands on it (AddDecoration).
+                cells[i].color = Rules.VisibleKind(stage, state, i) == CellKind.Color
+                    ? (Color)Theme.ToColor(Palette.Color(stage.CellAt(i).Color))
+                    : Theme.Floor;
             }
             if (figure != null) figure.SetColor(CameliFigure.ColorOf(state.Drops));
             else tokenFill.color = state.Drops.IsEmpty ? Color.white : (Color)Theme.ToColor(ColorMath.Mix(state.Drops));
@@ -349,7 +342,13 @@ namespace Cameli.Game
 
         void AddDecoration(Transform cell, Cell definition)
         {
-            if (definition.Kind == CellKind.Start)
+            if (definition.Kind == CellKind.Wall)
+            {
+                Ui.Stretch(Ui.NewImage("Fence Outline", cell, SpriteFactory.FenceOutline, Theme.FenceOutline).rectTransform);
+                Ui.Stretch(Ui.NewImage("Fence Rails", cell, SpriteFactory.FenceRails, Theme.FenceRail).rectTransform);
+                Ui.Stretch(Ui.NewImage("Fence Planks", cell, SpriteFactory.FencePlanks, Theme.FencePlank).rectTransform);
+            }
+            else if (definition.Kind == CellKind.Start)
             {
                 Image mark = Ui.NewImage("Start Mark", cell, SpriteFactory.Ring, new Color(Theme.Muted.r, Theme.Muted.g, Theme.Muted.b, 0.5f));
                 Ui.Inset(mark.rectTransform, 0.3f);
@@ -360,6 +359,63 @@ namespace Cameli.Game
                 Ui.Inset(Ui.NewImage("Gate Ring", cell, SpriteFactory.Ring, Theme.ToColor(gate.Color)).rectTransform, 0.06f);
                 AddRecipeDots(cell, gate.Recipe);
             }
+        }
+
+        /// <summary>
+        /// Joins neighboring fence cells so walls read as one fence: the rails continue across the gap to a fence on
+        /// the right, and a post (the middle plank) continues down to a fence below. Drawn over the cells, each
+        /// piece on an outline-colored piece one outline wider, like the fence sprites.
+        /// </summary>
+        void JoinFences()
+        {
+            float w = CellWidth, h = CellHeight;
+            // Rail bridges reach this far into each neighbor (of a cell): less than the rail-only strip at the cell's
+            // edge, outside the outer planks and their outline, since the bridges draw over the cells.
+            float overlap = 0.4f * (1f - SpriteFactory.FenceOuterPlankEdge - SpriteFactory.FenceOutlineWidth) / 2f;
+            for (int i = 0; i < stage.CellCount; i++)
+            {
+                if (stage.CellAt(i).Kind != CellKind.Wall) continue;
+                int x = i % stage.Width, y = i / stage.Width;
+                (Vector2 min, Vector2 max) = Anchors(i, 0f);
+                if (x + 1 < stage.Width && stage.CellAt(i + 1).Kind == CellKind.Wall)
+                {
+                    float left = max.x - w * overlap, right = max.x + GapFraction + w * overlap;
+                    Bridge("Rail Bridge", left, min.y + h * Fraction(SpriteFactory.FenceUpperRailBottom), right, min.y + h * Fraction(SpriteFactory.FenceUpperRailTop),
+                        0f, h * OutlineFraction, Theme.FenceRail);
+                    Bridge("Rail Bridge", left, min.y + h * Fraction(SpriteFactory.FenceLowerRailBottom), right, min.y + h * Fraction(SpriteFactory.FenceLowerRailTop),
+                        0f, h * OutlineFraction, Theme.FenceRail);
+                }
+                if (y + 1 < stage.Height && stage.CellAt(i + stage.Width).Kind == CellKind.Wall)
+                {
+                    // From this plank's foot down into the plank below, covering its point so the two read as one post.
+                    float half = SpriteFactory.FenceMiddlePlankHalfWidth / 2f;
+                    float lowerTop = min.y - GapFraction;
+                    Bridge("Post Bridge", min.x + w * (0.5f - half), lowerTop - h * (1f - Fraction(SpriteFactory.FencePlankShoulder)) - h * 0.02f,
+                        min.x + w * (0.5f + half), min.y + h * (Fraction(SpriteFactory.FencePlankBottom) + 0.02f), w * OutlineFraction, 0f, Theme.FencePlank);
+                }
+            }
+        }
+
+        /// <summary>The fence outline's width as a fraction of a cell (sprite units span 2).</summary>
+        const float OutlineFraction = SpriteFactory.FenceOutlineWidth / 2f;
+
+        /// <summary>Normalized sprite units (-1..1) to a fraction of the cell from its bottom edge.</summary>
+        static float Fraction(float normalized) => (normalized + 1f) / 2f;
+
+        /// <summary>A flat piece in board units, over an outline piece grown by <paramref name="outlineX"/> and <paramref name="outlineY"/>.</summary>
+        void Bridge(string name, float left, float bottom, float right, float top, float outlineX, float outlineY, Color color)
+        {
+            Place(Ui.NewImage(name + " Outline", transform, null, Theme.FenceOutline).rectTransform,
+                left - outlineX, bottom - outlineY, right + outlineX, top + outlineY);
+            Place(Ui.NewImage(name, transform, null, color).rectTransform, left, bottom, right, top);
+        }
+
+        static void Place(RectTransform rt, float left, float bottom, float right, float top)
+        {
+            rt.anchorMin = new Vector2(left, bottom);
+            rt.anchorMax = new Vector2(right, top);
+            rt.offsetMin = Vector2.zero;
+            rt.offsetMax = Vector2.zero;
         }
 
         /// <summary>Ingredient dots inside a gate (shown in Medium per the design).</summary>

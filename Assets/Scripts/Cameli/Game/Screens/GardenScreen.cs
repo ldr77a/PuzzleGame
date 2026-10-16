@@ -80,6 +80,12 @@ namespace Cameli.Game
             play = onPlay;
             inputGate = root.gameObject.AddComponent<CanvasGroup>();
 
+            // Camellia leaves peeking in from the edges behind the beds (Phase 2 spec §15); first, so they draw under everything.
+            Widgets.Leaf(root, new Vector2(0f, 0.80f), new Vector2(-20f, 0f), 240f, -40f, Theme.LeafDark);
+            Widgets.Leaf(root, new Vector2(1f, 0.58f), new Vector2(20f, 0f), 220f, 35f, Theme.LeafLight);
+            Widgets.Leaf(root, new Vector2(0f, 0.32f), new Vector2(-20f, 0f), 200f, -65f, Theme.LeafLight);
+            Widgets.Leaf(root, new Vector2(1f, 0.14f), new Vector2(10f, 0f), 240f, 50f, Theme.LeafDark);
+
             RectTransform header = Ui.TopStrip(Ui.NewRect("Header", root), HeaderTop, HeaderHeight, 36f);
             Button menuButton = Widgets.IconButton(header, "Menu", SpriteFactory.MenuIcon, openMenu);
             Ui.Box(menuButton.GetComponent<RectTransform>(), new Vector2(0f, 0.5f), Vector2.zero, new Vector2(HeaderHeight, HeaderHeight));

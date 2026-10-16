@@ -146,5 +146,21 @@ namespace Cameli.Game
 
         /// <summary>A rect that fills its parent; screens and overlays start from one.</summary>
         public static RectTransform Layer(Transform parent, string name) => Ui.Stretch(Ui.NewRect(name, parent));
+
+        /// <summary>
+        /// A camellia leaf for decoration (Phase 2 spec §15): centered <paramref name="offset"/> from
+        /// <paramref name="anchor"/>, <paramref name="length"/> tall, turned <paramref name="degrees"/> counterclockwise
+        /// from pointing up. Title and garden only; never near the board, where it would sit beside the tiles.
+        /// </summary>
+        public static void Leaf(RectTransform parent, Vector2 anchor, Vector2 offset, float length, float degrees, Color color)
+        {
+            // The leaf fills 80% of its square's height (SpriteFactory.Leaf).
+            float side = length / 0.8f;
+            RectTransform holder = Ui.Box(Ui.NewRect("Leaf", parent), anchor, offset, new Vector2(side, side));
+            holder.pivot = new Vector2(0.5f, 0.5f);
+            holder.localEulerAngles = new Vector3(0f, 0f, degrees);
+            Ui.Stretch(Ui.NewImage("Blade", holder, SpriteFactory.Leaf, color).rectTransform);
+            Ui.Stretch(Ui.NewImage("Vein", holder, SpriteFactory.LeafVein, new Color(1f, 1f, 1f, 0.3f)).rectTransform);
+        }
     }
 }

@@ -25,6 +25,12 @@ namespace Cameli.Game
             RectTransform layer = Widgets.Layer(parent, "Title Screen");
             root = layer.gameObject;
 
+            // Camellia leaves peeking in from the edges, behind the flowers (Phase 2 spec §15).
+            Widgets.Leaf(layer, new Vector2(0f, 0.93f), new Vector2(30f, 0f), 260f, -125f, Theme.LeafDark);
+            Widgets.Leaf(layer, new Vector2(1f, 0.70f), new Vector2(-10f, 0f), 210f, 110f, Theme.LeafLight);
+            Widgets.Leaf(layer, new Vector2(0f, 0.30f), new Vector2(-10f, 0f), 200f, -70f, Theme.LeafLight);
+            Widgets.Leaf(layer, new Vector2(1f, 0.06f), new Vector2(-30f, 0f), 260f, 130f, Theme.LeafDark);
+
             // Decorative camellias: normalized position, size, palette color, tilt.
             Decor(layer, 0.13f, 0.88f, 210f, 0, 18f, 0.0f);
             Decor(layer, 0.86f, 0.80f, 170f, 6, -12f, 0.7f);
