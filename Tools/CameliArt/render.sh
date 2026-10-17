@@ -11,11 +11,12 @@ here="$(cd "$(dirname "$0")" && pwd)"
 art="$here/../../Assets/Resources/CameliArt"
 icons="$here/../../Assets/CameliIcon"
 chrome="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+[ -x "$chrome" ] || { echo "Google Chrome not found: $chrome" >&2; exit 1; }
 
 shot() { # page, size, background (RRGGBBAA), output
   "$chrome" --headless=new --disable-gpu --hide-scrollbars --default-background-color="$3" \
     --window-size="$2,$2" --force-device-scale-factor=1 \
-    --screenshot="$4" "file://$here/$1" >/dev/null 2>&1
+    --screenshot="$4" "file://$here/$1" >/dev/null 2>&1 || { echo "Chrome failed on $1" >&2; exit 1; }
   echo "${4##*/}"
 }
 
@@ -23,6 +24,6 @@ mkdir -p "$art" "$icons"
 for layer in body_line tail_fill tail_line body_fill face_normal face_happy face_oops; do
   shot "cameli.html?layer=$layer" 512 00000000 "$art/$layer.png"
 done
-for part in ios round android_bg android_fg; do
+for part in ios android_bg android_fg; do
   shot "icon.html?part=$part" 1024 00000000 "$icons/icon_$part.png"
 done

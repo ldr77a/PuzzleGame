@@ -5,8 +5,7 @@
   and peeking in from the edges. render.sh opens this page once per part and saves a PNG to Assets/CameliIcon/, which
   "Cameli → 모바일 프로젝트 설정 적용" puts into the player settings.
 
-  ?part=ios         the full square, opaque (iOS crops the corners itself; also the default and Android legacy icon)
-  ?part=round       the full icon cut to a circle (Android round icon)
+  ?part=ios         the full square, opaque (iOS crops the corners itself; also the default icon, which older Android uses)
   ?part=android_bg  Android adaptive background: the square and the flowers, on a 108 canvas whose middle 72 is the icon
   ?part=android_fg  Android adaptive foreground: Cameli alone, same canvas, transparent
 
@@ -89,10 +88,7 @@
     const inner = part === "android_bg" ? ground + garden : cameli();
     svg = `<svg viewBox="0 0 108 108" xmlns="http://www.w3.org/2000/svg"><g transform="translate(18 18) scale(0.72)">${inner}</g></svg>`;
   } else {
-    const all = ground + garden + cameli();
-    svg = part === "round"
-      ? `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><defs><clipPath id="round"><circle cx="50" cy="50" r="50"/></clipPath></defs><g clip-path="url(#round)">${all}</g></svg>`
-      : `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">${all}</svg>`;
+    svg = `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">${ground + garden + cameli()}</svg>`;
   }
   document.body.innerHTML = svg;
 })();
