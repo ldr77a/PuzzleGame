@@ -46,7 +46,9 @@ namespace Cameli.Game
         readonly RectTransform middle;
         readonly RectTransform slotArea;
         readonly List<Slot> slots = new List<Slot>();
+        readonly RectTransform countBox;
         readonly Text countLabel;
+        readonly Pulse countPulse;
         readonly Text similarityLabel;
         readonly RectTransform chipArea;
         readonly RectTransform chipBlock;
@@ -70,7 +72,11 @@ namespace Cameli.Game
 
             middle = Ui.Stretch(Ui.NewRect("Drops", root), SideColumn, 0f, SideColumn, 0f);
             slotArea = Ui.NewRect("Slots", middle);
-            countLabel = Widgets.Label(middle, "Drop Count", "", 42, Theme.Ink);
+            // The label fills a box that Layout moves, so it keeps a centered pivot to pulse around.
+            countBox = Ui.NewRect("Drop Count", middle);
+            countLabel = Widgets.Label(countBox, "Label", "", 42, Theme.Ink);
+            Ui.Stretch(countLabel.rectTransform);
+            countPulse = Pulse.AddTo(countLabel, 1.12f);
             chipArea = Ui.NewRect("Recipe", middle);
             // The chips sit in one block hanging from the top center of the area; LayoutChips sizes and scales it.
             chipBlock = Ui.Box(Ui.NewRect("Chips", chipArea), new Vector2(0.5f, 1f), Vector2.zero, Vector2.zero);
@@ -82,6 +88,9 @@ namespace Cameli.Game
             Blossoms.SetBudColor(bud, Theme.ToColor(stage.TargetColor));
             SetChips(new List<int>());
         }
+
+        /// <summary>Pulses the "x/y" drop count (tutorial highlight) or lets it rest.</summary>
+        public void SetCountPulse(bool on) => countPulse.enabled = on;
 
         public void Refresh(GameSession session)
         {
@@ -136,7 +145,7 @@ namespace Cameli.Game
 
             float top = (Height - blockHeight) / 2f;
             Ui.TopStrip(slotArea, top, slotsHeight);
-            Ui.TopStrip(countLabel.rectTransform, top + slotsHeight + CountGap, CountHeight);
+            Ui.TopStrip(countBox, top + slotsHeight + CountGap, CountHeight);
             if (chips.Count > 0) Ui.TopStrip(chipArea, top + slotsHeight + CountGap + CountHeight + ChipsGap, chipsHeight, -ChipOverhang);
         }
 

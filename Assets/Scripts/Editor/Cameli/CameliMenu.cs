@@ -350,6 +350,7 @@ namespace Cameli.EditorTools
                 string[] pair = report.GateNearest.Split('~');
                 problems.Add($"게이트 {pair[0]}와 헷갈림 ({pair[1]}, ΔE {report.GateDeltaE:F1})");
             }
+            if ((flags & StageProblems.PathBroken) != 0) problems.Add(PathProblem(report));
 
             string gate = report.GateUse switch
             {
@@ -367,6 +368,15 @@ namespace Cameli.EditorTools
             else Debug.LogWarning(line);
             return problems;
         }
+
+        /// <summary>Why the tutorial path fails, for the problem list.</summary>
+        static string PathProblem(StageReport report) => report.PathCheck switch
+        {
+            PathCheck.Blocked => $"path의 {report.PathStep}번째 걸음이 닫힌 문에 막혀요",
+            PathCheck.ClearsEarly => $"path가 끝나기 전 {report.PathStep}번째 걸음에서 클리어돼요 (전체 {report.PathLength}걸음)",
+            PathCheck.NotCleared => $"path를 끝까지 걸어도 클리어되지 않아요 ({report.PathLength}걸음)",
+            _ => "path가 맞지 않아요",
+        };
 
         /// <summary>Adds <paramref name="problem"/>, logs the file's problems as an error, and returns them.</summary>
         static List<string> Fail(List<string> problems, string name, string problem)

@@ -50,13 +50,14 @@ Phase 1 (the Unity prototype) is done on a separate git branch.
   - `Rules.Step` is the only move logic.
     - Clearing, and passing a gate, need the color (±2) **and** the exact drop count (`Rules.Meets`). Ratio multiples don't count.
     - `Rules.IsOverfilled` flags a mix with more drops than any recipe on the stage. The solver prunes those states.
+    - `Rules.ExceedsTarget` flags a mix with more drops of some color than the target uses; on a stage without gates that attempt can't clear any more.
     - A passed gate leaves the player standing on the gate cell. Stepping back out the same side with an empty mix is allowed by design, so stages must need the gate as a door; `lab.sh check` verifies this.
   - `GameSession` is one visit to a stage. There is no undo. `Restart()` ("다시 하기") goes back to the start and counts in `Restarts` only after a move (otherwise it does nothing); `StartOver()` begins a fresh visit (entering, or replaying a cleared stage). Stars come from restarts only: `Scoring.Stars(restarts, hinted)` gives 3/2/1 for 0/1/2+ restarts, capped at ★★ when the attempt used a hint. Moves don't count.
   - Hints: `RevealColor(Random)` reveals a random recipe color the attempt hasn't revealed (no drop count); `RevealedColors` and `UsedHint` reset on restart. `MixOrder` is the eating order of the current mix, for the goal card.
   - `Solver` is a BFS for shortest clears, from the initial board or any `BoardState`, capped at `Solver.DefaultMaxStates` (2,000,000) states. Tooling and tests only; the game never runs it.
   - Colors are `Rgb`/`DropCounts`. `ColorMath` reproduces the legacy `ColorMixer` math, and also holds `DeltaE` (CIELAB, used by the audit) and `Similarity` (the goal card's percent: 100 on a match, else falling with ΔE, at most 99).
-  - `StageAudit.Audit(StageFile)` returns a `StageReport` (solvable, optimal vs stored, gate use, exact gate recipes, ambiguity ΔE, tile ΔE, walk%) with `StageProblems` flags. Tooling only: `lab.sh check` and the "Cameli/스테이지 검증" menu.
-  - `StageSections.All` lists the difficulty folders in play order with their garden headings; `StageDefinition.Section` is the index of the folder a stage was loaded from. Unity can't list Resources folders at runtime, so a new folder must be added there.
+  - `StageAudit.Audit(StageFile)` returns a `StageReport` (solvable, optimal vs stored, gate use, exact gate recipes, ambiguity ΔE, tile ΔE, walk%, and `PathCheck`: a tutorial `path` must move on every step and clear exactly on its last) with `StageProblems` flags. Tooling only: `lab.sh check` and the "Cameli/스테이지 검증" menu.
+  - `StageSections.All` lists the difficulty folders in play order with their garden headings; `StageDefinition.Section` is the index of the folder a stage was loaded from, and `IsTutorial` means `StageSections.Tutorial` (0_Tutorial). Unity can't list Resources folders at runtime, so a new folder must be added there.
   - Keep this assembly free of UnityEngine so the harness can run it.
 - **`Game/` (Assembly-CSharp, namespace `Cameli.Game`)** is the prototype client:
   - `CameliGame` is the entry point on an empty GameObject. It builds the whole uGUI in code: no prefabs and no scene wiring.
@@ -66,18 +67,25 @@ Phase 1 (the Unity prototype) is done on a separate git branch.
   - Playtest tools: holding the stage title for 2 s (`LongPress`) opens `PlaytestPanel`, which offers next tester / log summary. `PlaytestLog` appends one row per stage attempt to `persistentDataPath/playtest.csv`. The moderator's guide is `docs/플레이테스트 기록지.md`.
   - **Phase 2 app (`GardenApp`, scene `Garden.unity`)** follows `docs/2단계 화면 명세.md`. `GardenApp` builds everything in code and routes Title → Garden → Play, with `MenuSheet`, `GrantPopup` (reward placeholder, marked `// 4단계: 보상형 광고`), and `PlaytestPanel` on top; Escape (Android back) closes the top window first. The screens live in `Game/Screens/`:
     - `TitleScreen`, `GardenScreen` (scrolling 4-column stage bed, one section per difficulty folder; also decides the next stage and "이어하기"), `PlayScreen` (session, input buffering, hints, guides, feedback, playtest log; same attempt boundaries as `CameliGame`), `PlayHud` + `GoalCard` (everything around the board; the card shows the bud, the drop slots with "x/y", hint chips, and `ColorMath.Similarity` as a percent), `ClearView` (bloom sequence, tap to skip).
-    - `Widgets` holds the shared card/button/star helpers; `Sway`, `Blink`, `SlideIn` are tiny unscaled-time animators.
+    - `Widgets` holds the shared card/button/star helpers; `Sway`, `Blink`, `SlideIn`, `Pulse` are tiny unscaled-time animators.
     - `BoardView` draws wall cells as a wooden fence on floor (`SpriteFactory.Fence*`) and `JoinFences` bridges neighboring walls; title and garden add `Widgets.Leaf` decoration at the edges, never the play screen (spec §15).
     - `BoardView.FigureToken` draws the token as `CameliFigure`; `ShowGlow` and `ShowSwipe` draw the tutorial guides and `ShowBlink(color)` blinks the hinted color's cells until the next move. `CameliGame` leaves them off.
     - `CameliFigure.SetFace(CameliFace)` shows Normal, Happy (cleared), or Oops (overfilled, or 0.6 s after a bump), set by `PlayScreen` on the board token; the figure token hops on each move (squash and stretch scaled by `CameliFigure.SquashStretch`, 0 for rigid art such as pixel art) and every figure's tail sways.
-    - `HintStore` keeps today's free hints (`cameli.hints` + `cameli.hints.day`, 3 per local day, no carry-over). With none left, the hint button offers `GrantPopup`, and the "ad" uses a hint on the spot. `Progress.ResetAll` (next tester) clears it too.
+    - `HintStore` keeps today's free hints (`cameli.hints` + `cameli.hints.day`, 3 per local day, no carry-over). With none left, the hint button offers `GrantPopup`, and the "ad" uses a hint on the spot. `Progress.ResetAll` (next tester) clears it too, along with `HintStore.IntroShown` (`cameli.hintIntro`).
+    - Tutorial on the play screen (`CameliGame` has none of this):
+      - Guides: `focus`/`swipe` show until the first move. A stage `path` glows its next cell, moves on after each move along it (the new glow shows on landing), and turns off for the attempt at any other move, blocked ones included. `highlight: "count"` pulses the goal card's "x/y" until the first move. Restart and replay start them over.
+      - Tutorial stages without gates show "이대로는 못 깨요…" and pulse [다시 하기] once `Rules.ExceedsTarget` holds, until a restart. Other stages only get the overfill message.
+      - Tutorial stages have no hint button ([다시 하기] spans the bar; H does nothing).
+      - Outside the tutorial, the first time ever a visit reaches 2 restarts, the hint button pulses (until pressed, cleared, or left) with "막히면 힌트!…" (`HintStore.IntroShown`).
     - Jua lacks "·", arrows, and similar symbols: keep UI strings to Hangul, Latin, digits, and ★, and draw icons with `SpriteFactory`.
 - **Stage files** live in `Assets/Resources/CameliStages/<folder>/stage_NN.json`, matching `StageFile` in `Core/Stage.cs`:
   - The folder is the difficulty and the garden section: `0_Tutorial` (1–5), `1_Easy` (6–45), `2_Medium` (46–49 so far), `3_Hard` (empty, kept by `.gitkeep`). Files outside these folders are not loaded.
   - `rows`: space-separated tokens, top row first. Color letters are `R O Y G B N P`. `S` is the start (must be the center cell; on even sizes, the top-left of the central 2×2), `#` is a wall, `gN` is a gate.
   - `target`, `gates`: recipe strings such as `"RRY"`.
   - `optimalMoves`: from the solver. Not used for stars any more; it measures difficulty and the audit checks it.
-  - Optional tutorial fields: `focus` (`[x, y]`, column and row from the top; the cell glows before the first move) and `swipe` (`"up"`, `"down"`, `"left"`, `"right"`).
+  - Optional tutorial fields:
+    - `focus` (`[x, y]`, column and row from the top; the cell glows before the first move) and `swipe` (`"up"`, `"down"`, `"left"`, `"right"`).
+    - `path` (space-separated directions from the start, e.g. `"left up"`; on the board and not into walls at load, and `lab.sh check` requires it to clear exactly on its last step) and `highlight` (only `"count"`).
   - Ids must run 1..n across all folders, in folder order (every tutorial id < every Easy id < …), so adding a stage anywhere but the end of the last used folder means renumbering. Moving files from the shell needs their `.meta` too.
   - The user's Korean editing guide is [`docs/스테이지 수정 방법.md`](docs/스테이지%20수정%20방법.md); keep it in sync when the format, rules, or audit change.
 - **Editor menu `Cameli/`** (`Assets/Scripts/Editor/Cameli/CameliMenu.cs`):

@@ -176,9 +176,52 @@ namespace Cameli.Tests
             Assert.AreEqual(-1, stage.FocusIndex);
             Assert.IsNull(stage.Swipe);
 
+            Assert.AreEqual(0, stage.Path.Count);
+            Assert.AreEqual(StageHighlight.None, stage.Highlight);
+
             stage = WithTutorial(new int[0], "");
             Assert.AreEqual(-1, stage.FocusIndex, "JsonUtility reads a missing array as empty");
             Assert.IsNull(stage.Swipe);
+            stage = WithGuide("", "");
+            Assert.AreEqual(0, stage.Path.Count, "JsonUtility reads a missing string as empty");
+            Assert.AreEqual(StageHighlight.None, stage.Highlight);
+        }
+
+        /// <summary>
+        /// Y # Y
+        /// Y S R
+        /// Y Y Y      target: red 1
+        /// </summary>
+        static StageDefinition WithGuide(string path, string highlight) => StageDefinition.FromFile(new StageFile
+        {
+            id = 1, rows = new[] { "Y # Y", "Y S R", "Y Y Y" }, target = "R", path = path, highlight = highlight,
+        });
+
+        [Test]
+        public void ParsesPathAndHighlight()
+        {
+            StageDefinition stage = WithGuide("right  up", "count");
+            CollectionAssert.AreEqual(new[] { Direction.Right, Direction.Up }, stage.Path, "extra spaces are fine");
+            Assert.AreEqual(StageHighlight.Count, stage.Highlight);
+        }
+
+        [Test]
+        public void RejectsUnknownPathWordsAndHighlights()
+        {
+            Assert.Throws<StageFormatException>(() => WithGuide("right north", null));
+            Assert.Throws<StageFormatException>(() => WithGuide("Right", null));
+            Assert.Throws<StageFormatException>(() => WithGuide(null, "drops"));
+            Assert.Throws<StageFormatException>(() => WithGuide(null, "Count"));
+        }
+
+        [Test]
+        public void RejectsPathsOffTheBoardOrIntoAWall()
+        {
+            Assert.Throws<StageFormatException>(() => WithGuide("up", null), "wall above the start");
+            Assert.Throws<StageFormatException>(() => WithGuide("right up left", null), "third step into the wall");
+            Assert.Throws<StageFormatException>(() => WithGuide("down down", null), "second step off the bottom");
+            Assert.Throws<StageFormatException>(() => WithGuide("left left", null), "second step off the left edge");
+            Assert.AreEqual(4, WithGuide("left up down right", null).Path.Count, "back and forth, and over the start, is fine");
         }
 
         [Test]
@@ -325,6 +368,29 @@ namespace Cameli.Tests
 
             session.Restart();
             Assert.IsFalse(Rules.IsOverfilled(session.Stage, session.State));
+        }
+
+        [Test]
+        public void ExceedsTargetOnceAColorHasTooManyDrops()
+        {
+            // TestStages.Basic, target YB: a red drop is already one too many, and so is a second yellow.
+            StageDefinition stage = TestStages.Basic();
+            var session = new GameSession(stage);
+            Assert.IsFalse(Rules.ExceedsTarget(stage, session.State), "nothing eaten");
+            session.Move(Direction.Up);
+            Assert.IsFalse(Rules.ExceedsTarget(stage, session.State), "Y fits the target");
+            session.Move(Direction.Left);
+            Assert.AreEqual("RY", session.State.Drops.ToString());
+            Assert.IsTrue(Rules.ExceedsTarget(stage, session.State), "red is not in the target");
+            Assert.IsFalse(Rules.IsOverfilled(stage, session.State), "two drops are not more than the target's two");
+
+            session.Restart();
+            Assert.IsFalse(Rules.ExceedsTarget(stage, session.State));
+            session.Move(Direction.Up);
+            session.Move(Direction.Down);
+            session.Move(Direction.Left);
+            Assert.AreEqual("YY", session.State.Drops.ToString());
+            Assert.IsTrue(Rules.ExceedsTarget(stage, session.State), "one yellow too many");
         }
 
         [Test]
@@ -688,6 +754,53 @@ namespace Cameli.Tests
             Assert.AreEqual(StageProblems.Unsolvable, report.Problems);
         }
 
+        /// <summary>
+        /// Tutorial stage 2: Y Y Y / R S Y / R R R, target red 1 + yellow 1, 2 moves at best.
+        /// </summary>
+        static StageFile PathStage(string path) => new StageFile
+        {
+            id = 2, rows = new[] { "Y Y Y", "R S Y", "R R R" }, target = "RY", optimalMoves = 2, path = path,
+        };
+
+        [Test]
+        public void PathThatClearsOnItsLastStepPasses()
+        {
+            StageReport report = StageAudit.Audit(PathStage("left up"));
+            Assert.AreEqual(PathCheck.ClearsAtEnd, report.PathCheck);
+            Assert.AreEqual(StageProblems.None, report.Problems);
+            Assert.AreEqual(PathCheck.None, StageAudit.Audit(PathStage(null)).PathCheck);
+        }
+
+        [Test]
+        public void PathThatClearsEarlyIsReported()
+        {
+            StageReport report = StageAudit.Audit(PathStage("left up right"));
+            Assert.AreEqual(PathCheck.ClearsEarly, report.PathCheck);
+            Assert.AreEqual(2, report.PathStep);
+            Assert.AreEqual(3, report.PathLength);
+            Assert.AreEqual(StageProblems.PathBroken, report.Problems);
+        }
+
+        [Test]
+        public void PathThatNeverClearsIsReported()
+        {
+            StageReport report = StageAudit.Audit(PathStage("left right"));
+            Assert.AreEqual(PathCheck.NotCleared, report.PathCheck, "R, then back to the start: one drop short");
+            Assert.AreEqual(StageProblems.PathBroken, report.Problems);
+        }
+
+        [Test]
+        public void PathBlockedByAGateIsReported()
+        {
+            // The door stage's gate sits right above the start and won't open for an empty mix.
+            StageFile file = DoorStage();
+            file.path = "up";
+            StageReport report = StageAudit.Audit(file);
+            Assert.AreEqual(PathCheck.Blocked, report.PathCheck);
+            Assert.AreEqual(1, report.PathStep);
+            Assert.AreEqual(StageProblems.PathBroken, report.Problems);
+        }
+
         [Test]
         public void WithoutGatesWallsOffGateCells()
         {
@@ -706,6 +819,15 @@ namespace Cameli.Tests
             Assert.AreEqual(3, StageSections.IndexOf("3_Hard"));
             Assert.AreEqual(-1, StageSections.IndexOf("CameliStages"));
             Assert.AreEqual(-1, StageSections.IndexOf("1_easy"), "folder names are case-sensitive, like Resources paths");
+        }
+
+        [Test]
+        public void TutorialIsTheFirstFolder()
+        {
+            Assert.AreEqual("0_Tutorial", StageSections.All[StageSections.Tutorial].Folder);
+            var file = new StageFile { id = 1, rows = new[] { "R Y B", "Y S #", "B Y R" }, target = "YB" };
+            Assert.IsTrue(StageDefinition.FromFile(file, StageSections.Tutorial).IsTutorial);
+            Assert.IsFalse(StageDefinition.FromFile(file, StageSections.IndexOf("1_Easy")).IsTutorial);
         }
 
         [Test]

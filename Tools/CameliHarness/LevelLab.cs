@@ -108,6 +108,11 @@ static class LevelLab
             Console.WriteLine($"{file.id,2}  {file.rows.Length}x{file.rows.Length}  {a.Colors,-6} {file.target,-6}  {file.optimalMoves,6} {a.Optimal,3}{(mismatch ? "!" : " ")}  {a.OptimalSets,7} {a.NearSets,8}  {targetDe,-12} {gateDe,-21} {a.TileDeltaE,6:F1} {a.WalkClear * 100,5:F2}  {(a.Exact ? "yes" : "NO"),-5} {gate,-9} {file.title}");
             if (a.TargetAmbiguous) Console.WriteLine($"    AMBIGUOUS target {file.target}: {a.TargetNearest} is only ΔE {a.TargetDeltaE:F1} away");
             if (a.GateAmbiguous) Console.WriteLine($"    AMBIGUOUS gate {a.GateNearest.Replace("~", ": ")} is only ΔE {a.GateDeltaE:F1} away");
+            if (a.PathBroken)
+            {
+                Console.WriteLine($"    PATH BROKEN \"{file.path}\": {PathFailure(a)}");
+                problems++;
+            }
         }
         if (unread > 0)
         {
@@ -133,6 +138,15 @@ static class LevelLab
         Console.WriteLine(problems == 0 ? "OK" : $"{problems} problem(s)");
         return problems == 0 ? 0 : 1;
     }
+
+    /// <summary>Why the tutorial path fails, in words.</summary>
+    static string PathFailure(StageReport a) => a.PathCheck switch
+    {
+        PathCheck.Blocked => $"step {a.PathStep} of {a.PathLength} doesn't move (closed gate)",
+        PathCheck.ClearsEarly => $"clears on step {a.PathStep} of {a.PathLength}, before the end",
+        PathCheck.NotCleared => $"all {a.PathLength} steps move but the stage isn't cleared",
+        _ => a.PathCheck.ToString(),
+    };
 
     static int Solve(string[] args)
     {

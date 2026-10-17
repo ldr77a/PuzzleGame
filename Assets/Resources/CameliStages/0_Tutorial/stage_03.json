@@ -8,5 +8,6 @@
     "B B B"
   ],
   "target": "YYB",
-  "optimalMoves": 3
+  "optimalMoves": 3,
+  "highlight": "count"
 }

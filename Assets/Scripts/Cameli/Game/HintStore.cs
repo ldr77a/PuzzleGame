@@ -15,6 +15,7 @@ namespace Cameli.Game
 
         const string CountKey = "cameli.hints";
         const string DayKey = "cameli.hints.day";
+        const string IntroKey = "cameli.hintIntro";
 
         static string Today => DateTime.Now.ToString("yyyyMMdd", CultureInfo.InvariantCulture);
 
@@ -34,11 +35,26 @@ namespace Cameli.Game
             return true;
         }
 
-        /// <summary>Back to a full day of hints, for the next playtester.</summary>
+        /// <summary>
+        /// The hint button has been introduced (pulse and message after a second restart in one visit, outside the
+        /// tutorial); it happens once per player.
+        /// </summary>
+        public static bool IntroShown
+        {
+            get => PlayerPrefs.GetInt(IntroKey, 0) != 0;
+            set
+            {
+                PlayerPrefs.SetInt(IntroKey, value ? 1 : 0);
+                PlayerPrefs.Save();
+            }
+        }
+
+        /// <summary>Back to a full day of hints and no introduction yet, for the next playtester.</summary>
         public static void ResetAll()
         {
             PlayerPrefs.DeleteKey(CountKey);
             PlayerPrefs.DeleteKey(DayKey);
+            PlayerPrefs.DeleteKey(IntroKey);
             PlayerPrefs.Save();
         }
     }

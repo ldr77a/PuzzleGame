@@ -19,6 +19,25 @@ namespace Cameli.Core
         AsReset,
     }
 
+    /// <summary>What walking a stage's tutorial path (<see cref="StageDefinition.Path"/>) with the game rules gives.</summary>
+    public enum PathCheck
+    {
+        /// <summary>The stage has no path.</summary>
+        None,
+
+        /// <summary>Every step moves, and the stage is cleared exactly on the last one.</summary>
+        ClearsAtEnd,
+
+        /// <summary>A step doesn't move: a gate that won't open (edges and walls are rejected when the stage loads).</summary>
+        Blocked,
+
+        /// <summary>The stage is cleared before the last step.</summary>
+        ClearsEarly,
+
+        /// <summary>Every step moves, but the stage isn't cleared at the end.</summary>
+        NotCleared,
+    }
+
     /// <summary>Problems that fail a stage in <see cref="StageAudit"/>. Several can be set at once.</summary>
     [Flags]
     public enum StageProblems
@@ -43,6 +62,9 @@ namespace Cameli.Core
 
         /// <summary>The same as <see cref="TargetAmbiguous"/> for a gate recipe.</summary>
         GateAmbiguous = 1 << 7,
+
+        /// <summary>The tutorial path doesn't clear exactly on its last step (<see cref="PathCheck"/>).</summary>
+        PathBroken = 1 << 8,
     }
 
     /// <summary>Everything <see cref="StageAudit.Audit"/> found out about one stage.</summary>
@@ -97,9 +119,19 @@ namespace Cameli.Core
         /// <summary>Times the found shortest path comes back to the start cell.</summary>
         public int StartReturns;
 
+        /// <summary>The tutorial path walked with the game rules; filled for every valid stage, solvable or not.</summary>
+        public PathCheck PathCheck;
+
+        /// <summary>The path's step (from 1) that was blocked or cleared early; 0 otherwise.</summary>
+        public int PathStep;
+
+        /// <summary>Steps in the tutorial path; 0 without one.</summary>
+        public int PathLength;
+
         public bool OptimalMismatch => Solvable && Optimal != StoredOptimal;
         public bool TargetAmbiguous => TargetDeltaE < StageAudit.AmbiguityThreshold;
         public bool GateAmbiguous => GateDeltaE < StageAudit.AmbiguityThreshold;
+        public bool PathBroken => PathCheck != PathCheck.None && PathCheck != PathCheck.ClearsAtEnd;
 
         public StageProblems Problems
         {
@@ -114,6 +146,7 @@ namespace Cameli.Core
                 if (GateUse == GateUse.AsReset) problems |= StageProblems.GateAsReset;
                 if (TargetAmbiguous) problems |= StageProblems.TargetAmbiguous;
                 if (GateAmbiguous) problems |= StageProblems.GateAmbiguous;
+                if (PathBroken) problems |= StageProblems.PathBroken;
                 return problems;
             }
         }
@@ -122,7 +155,7 @@ namespace Cameli.Core
     /// <summary>
     /// The stage checks shared by <c>lab.sh check</c> (LevelLab) and the Unity menu "Cameli/스테이지 검증": solvable,
     /// stored vs actual optimalMoves, gates used as doors and passed with their exact recipe, and the ambiguity
-    /// filter, plus informational numbers. Tooling only; the solver searches can take a while on big boards.
+    /// filter, the tutorial path, plus informational numbers. Tooling only; the solver searches can take a while on big boards.
     /// </summary>
     public static class StageAudit
     {
@@ -153,7 +186,9 @@ namespace Cameli.Core
                 Colors = ColorLetters(stage),
                 Target = file.target,
                 StoredOptimal = file.optimalMoves,
+                PathLength = stage.Path.Count,
             };
+            report.PathCheck = CheckPath(stage, out report.PathStep);
 
             Solution solution = Solver.Solve(stage);
             if (solution == null) return report;
@@ -171,6 +206,31 @@ namespace Cameli.Core
             else if (Solver.Solve(StageDefinition.FromFile(WithoutGates(file))) != null) report.GateUse = GateUse.Skippable;
             else report.GateUse = beyondGate ? GateUse.Door : GateUse.AsReset;
             return report;
+        }
+
+        /// <summary>
+        /// Walks the stage's tutorial path from the start with <see cref="Rules.Step"/>. <paramref name="step"/> is the
+        /// step (from 1) that was blocked or cleared early, else 0.
+        /// </summary>
+        public static PathCheck CheckPath(StageDefinition stage, out int step)
+        {
+            step = 0;
+            if (stage.Path.Count == 0) return PathCheck.None;
+            BoardState state = BoardState.Initial(stage);
+            for (int i = 0; i < stage.Path.Count; i++)
+            {
+                if (!Rules.Step(stage, state, stage.Path[i], out state).IsMove())
+                {
+                    step = i + 1;
+                    return PathCheck.Blocked;
+                }
+                if (state.Cleared && i < stage.Path.Count - 1)
+                {
+                    step = i + 1;
+                    return PathCheck.ClearsEarly;
+                }
+            }
+            return state.Cleared ? PathCheck.ClearsAtEnd : PathCheck.NotCleared;
         }
 
         /// <summary>True when the solution passes every gate holding exactly the gate's recipe (not a multiple).</summary>

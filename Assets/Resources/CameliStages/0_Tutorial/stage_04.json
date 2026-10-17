@@ -8,5 +8,6 @@
     "Y R Y"
   ],
   "target": "RB",
-  "optimalMoves": 3
+  "optimalMoves": 3,
+  "path": "up down left"
 }

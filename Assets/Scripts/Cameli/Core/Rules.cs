@@ -114,6 +114,17 @@ namespace Cameli.Core
         public static bool IsOverfilled(StageDefinition stage, in BoardState state) =>
             state.Drops.Total > stage.MaxRecipeDrops;
 
+        /// <summary>
+        /// True when the mix holds more drops of some color than the target recipe uses. Drops only grow until a gate
+        /// takes them, so on a stage without gates the attempt can no longer clear.
+        /// </summary>
+        public static bool ExceedsTarget(StageDefinition stage, in BoardState state)
+        {
+            for (int color = 0; color < Palette.Count; color++)
+                if (state.Drops[color] > stage.Target[color]) return true;
+            return false;
+        }
+
         /// <summary>The cell kind as the player currently sees it: eaten color cells read as floor.</summary>
         public static CellKind VisibleKind(StageDefinition stage, in BoardState state, int index)
         {

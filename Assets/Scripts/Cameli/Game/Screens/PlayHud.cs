@@ -7,7 +7,8 @@ namespace Cameli.Game
 {
     /// <summary>
     /// Everything on the play screen around the board (Phase 2 spec §2): top bar, goal card, Cameli's speech
-    /// bubble, the info row, the message line, and the restart and hint buttons. <see cref="BoardTop"/> and
+    /// bubble, the info row, the message line, and the restart and hint buttons (no hint button in the tutorial, where
+    /// [다시 하기] takes the whole bar). The count, [다시 하기], and the hint button can pulse. <see cref="BoardTop"/> and
     /// <see cref="BoardBottom"/> say how much the board area leaves free.
     /// </summary>
     sealed class PlayHud
@@ -23,6 +24,13 @@ namespace Cameli.Game
         const float MessageSeconds = 3.2f;
         const float MessageFadeSeconds = 0.4f;
 
+        /// <summary>
+        /// Pulse sizes for the bottom buttons: small, because [다시 하기] spans the whole bar when it pulses in the tutorial,
+        /// and the half-width hint button would swell into its neighbor on wide (tablet) canvases.
+        /// </summary>
+        const float HintPulseScale = 1.06f;
+        const float RestartPulseScale = 1.06f;
+
         readonly Text title;
         readonly GoalCard card;
         readonly RectTransform bubble;
@@ -32,6 +40,9 @@ namespace Cameli.Game
         readonly Text messageLabel;
         readonly Text hintLabel;
         readonly Button restartButton;
+        readonly Button hintButton;
+        readonly Pulse restartPulse;
+        readonly Pulse hintPulse;
         float messageLeft;
 
         /// <summary>Canvas units from the top of the safe area to the board area, which depends on the bubble.</summary>
@@ -79,11 +90,13 @@ namespace Cameli.Game
             // Bottom bar: [다시 하기] [힌트 n]
             RectTransform bottom = Ui.BottomStrip(Ui.NewRect("Bottom Bar", root), 40f, 140f, Side);
             restartButton = Widgets.Button(bottom, "Restart", "다시 하기", 44, false, restart, out _, SpriteFactory.RestartIcon, sound: null);
-            Half(restartButton, 0f);
-            Button hintButton = Widgets.Button(bottom, "Hint", "", 44, false, hint, out hintLabel, SpriteFactory.BulbIcon);
+            restartPulse = Pulse.AddTo(restartButton, RestartPulseScale);
+            hintButton = Widgets.Button(bottom, "Hint", "", 44, false, hint, out hintLabel, SpriteFactory.BulbIcon);
             Half(hintButton, 1f);
+            hintPulse = Pulse.AddTo(hintButton, HintPulseScale);
         }
 
+        /// <summary>New stage: texts and bubble, the hint button only outside the tutorial, and nothing pulsing.</summary>
         public void SetStage(StageDefinition stage)
         {
             // Jua has no "·", so the number and the name are joined with a period.
@@ -91,7 +104,28 @@ namespace Cameli.Game
             bubbleText.text = stage.Hint;
             bubble.gameObject.SetActive(!string.IsNullOrEmpty(stage.Hint));
             card.SetStage(stage);
+            bool hints = !stage.IsTutorial;
+            hintButton.gameObject.SetActive(hints);
+            if (hints) Half(restartButton, 0f);
+            else Ui.Stretch(restartButton.GetComponent<RectTransform>());
+            StopPulses();
             ShowMessage("");
+        }
+
+        /// <summary>Pulses the goal card's "x/y" drop count (tutorial highlight before the first move).</summary>
+        public void SetCountPulse(bool on) => card.SetCountPulse(on);
+
+        /// <summary>Pulses [다시 하기] (the tutorial's "can't clear like this" nudge).</summary>
+        public void SetRestartPulse(bool on) => restartPulse.enabled = on;
+
+        /// <summary>Pulses the hint button (the one-time hint introduction).</summary>
+        public void SetHintPulse(bool on) => hintPulse.enabled = on;
+
+        public void StopPulses()
+        {
+            SetCountPulse(false);
+            SetRestartPulse(false);
+            SetHintPulse(false);
         }
 
         public void Refresh(GameSession session)

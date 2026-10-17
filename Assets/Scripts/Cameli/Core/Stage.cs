@@ -36,6 +36,24 @@ namespace Cameli.Core
 
         /// <summary>Tutorial: "up", "down", "left" or "right"; a finger swipes that way from the start until the first move (optional).</summary>
         public string swipe;
+
+        /// <summary>
+        /// Tutorial: space-separated directions from the start, e.g. "left up"; the next cell on it glows until the player
+        /// goes another way (optional). The audit checks that it clears exactly on its last step.
+        /// </summary>
+        public string path;
+
+        /// <summary>Tutorial: what pulses before the first move; only "count" (the goal card's drop count) so far (optional).</summary>
+        public string highlight;
+    }
+
+    /// <summary>The part of the play screen a tutorial stage pulses before the first move.</summary>
+    public enum StageHighlight
+    {
+        None,
+
+        /// <summary>The goal card's "x/y" drop count.</summary>
+        Count,
     }
 
     public sealed class StageFormatException : Exception
@@ -64,6 +82,7 @@ namespace Cameli.Core
 
         readonly Cell[] cells;
         readonly GateDefinition[] gates;
+        readonly Direction[] path;
 
         public int Id { get; }
         public string Title { get; }
@@ -81,17 +100,26 @@ namespace Cameli.Core
         /// <summary>Tutorial swipe to show from the start cell before the first move; null for none.</summary>
         public Direction? Swipe { get; }
 
+        /// <summary>Tutorial route from the start cell, one direction per move; empty for none.</summary>
+        public IReadOnlyList<Direction> Path => path;
+
+        /// <summary>Tutorial highlight to pulse before the first move.</summary>
+        public StageHighlight Highlight { get; }
+
         /// <summary>The largest drop count among the target and the gate recipes; any more can never be used.</summary>
         public int MaxRecipeDrops { get; }
 
         /// <summary>Index in <see cref="StageSections.All"/>: the difficulty folder the stage file was loaded from.</summary>
         public int Section { get; }
 
+        /// <summary>The stage comes from the tutorial folder (<see cref="StageSections.Tutorial"/>).</summary>
+        public bool IsTutorial => Section == StageSections.Tutorial;
+
         public int CellCount => cells.Length;
         public IReadOnlyList<GateDefinition> Gates => gates;
 
         StageDefinition(StageFile file, int width, int height, Cell[] cells, int startIndex, DropCounts target, GateDefinition[] gates,
-            int focusIndex, Direction? swipe, int section)
+            int focusIndex, Direction? swipe, Direction[] path, StageHighlight highlight, int section)
         {
             Id = file.id;
             Title = file.title ?? string.Empty;
@@ -106,6 +134,8 @@ namespace Cameli.Core
             this.gates = gates;
             FocusIndex = focusIndex;
             Swipe = swipe;
+            this.path = path;
+            Highlight = highlight;
             Section = section;
             MaxRecipeDrops = target.Total;
             foreach (GateDefinition gate in gates) MaxRecipeDrops = Math.Max(MaxRecipeDrops, gate.Recipe.Total);
@@ -163,7 +193,9 @@ namespace Cameli.Core
             int focus = ParseFocus(file.focus, width, height, cells, label);
             Direction? swipe = ParseSwipe(file.swipe, label);
             if (swipe.HasValue) CheckSwipe(swipe.Value, start, width, height, cells, label);
-            return new StageDefinition(file, width, height, cells, start, target, gates, focus, swipe, section);
+            Direction[] path = ParsePath(file.path, start, width, height, cells, label);
+            StageHighlight highlight = ParseHighlight(file.highlight, label);
+            return new StageDefinition(file, width, height, cells, start, target, gates, focus, swipe, path, highlight, section);
         }
 
         /// <summary>
@@ -196,16 +228,56 @@ namespace Cameli.Core
 
         static Direction? ParseSwipe(string swipe, string label)
         {
-            switch (swipe)
+            if (string.IsNullOrEmpty(swipe)) return null;
+            if (TryParseDirection(swipe, out Direction direction)) return direction;
+            throw new StageFormatException($"{label}: swipe must be up, down, left or right, got \"{swipe}\".");
+        }
+
+        /// <summary>
+        /// Missing or empty = no path. Each step must stay on the board and not walk into a wall; whether gates let it
+        /// through and where it clears is the audit's job (<see cref="StageProblems.PathBroken"/>).
+        /// </summary>
+        static Direction[] ParsePath(string path, int start, int width, int height, Cell[] cells, string label)
+        {
+            string[] words = SplitRow(path);
+            var steps = new Direction[words.Length];
+            int x = start % width, y = start / width;
+            for (int i = 0; i < words.Length; i++)
+            {
+                if (!TryParseDirection(words[i], out steps[i]))
+                    throw new StageFormatException($"{label}: path steps must be up, down, left or right, got \"{words[i]}\".");
+                x += steps[i].Dx();
+                y += steps[i].Dy();
+                if (x < 0 || x >= width || y < 0 || y >= height)
+                    throw new StageFormatException($"{label}: path step {i + 1} ({words[i]}) leads off the board.");
+                if (cells[y * width + x].Kind == CellKind.Wall)
+                    throw new StageFormatException($"{label}: path step {i + 1} ({words[i]}) leads into a wall.");
+            }
+            return steps;
+        }
+
+        static StageHighlight ParseHighlight(string highlight, string label)
+        {
+            switch (highlight)
             {
                 case null:
-                case "": return null;
-                case "up": return Direction.Up;
-                case "down": return Direction.Down;
-                case "left": return Direction.Left;
-                case "right": return Direction.Right;
+                case "": return StageHighlight.None;
+                case "count": return StageHighlight.Count;
             }
-            throw new StageFormatException($"{label}: swipe must be up, down, left or right, got \"{swipe}\".");
+            throw new StageFormatException($"{label}: highlight must be \"count\", got \"{highlight}\".");
+        }
+
+        static bool TryParseDirection(string word, out Direction direction)
+        {
+            switch (word)
+            {
+                case "up": direction = Direction.Up; return true;
+                case "down": direction = Direction.Down; return true;
+                case "left": direction = Direction.Left; return true;
+                case "right": direction = Direction.Right; return true;
+            }
+            direction = default;
+            return false;
         }
 
         static string[] SplitRow(string row) =>

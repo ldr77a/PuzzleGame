@@ -59,8 +59,8 @@ namespace Cameli.Game
         }
 
         /// <summary>
-        /// Forgets unlocks, stars, the last stage played, and today's hint count (<see cref="HintStore"/>), for
-        /// handing the device to the next playtester.
+        /// Forgets unlocks, stars, the last stage played, today's hint count, and whether the hint button was
+        /// introduced (<see cref="HintStore"/>), for handing the device to the next playtester.
         /// </summary>
         public static void ResetAll(IEnumerable<int> stageIds)
         {

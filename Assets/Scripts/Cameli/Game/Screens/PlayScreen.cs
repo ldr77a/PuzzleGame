@@ -18,6 +18,11 @@ namespace Cameli.Game
         const int MaxBufferedMoves = 2;
         const float ClearViewDelay = 0.3f;
         const string OverfilledMessage = "방울이 너무 많아요. 다시 하기를 눌러 보세요.";
+        const string StuckMessage = "이대로는 못 깨요. 다시 하기를 눌러 보세요.";
+        const string HintIntroMessage = "막히면 힌트! 필요한 색 하나를 알려 줘요.";
+
+        /// <summary>Restarts in one visit that introduce the hint button (the stars drop to ★), once ever.</summary>
+        const int HintIntroRestarts = 2;
 
         /// <summary>How long Cameli looks startled after bumping into a wall, the edge, or a closed gate.</summary>
         const float OopsSeconds = 0.6f;
@@ -35,6 +40,9 @@ namespace Cameli.Game
 
         /// <summary>Unscaled time until which a bump keeps the Oops face; 0 when no bump is pending.</summary>
         float oopsUntil;
+
+        /// <summary>Index in <see cref="StageDefinition.Path"/> of the next step the path guide shows; -1 once it is off.</summary>
+        int pathStep = -1;
 
         PlayHud hud;
         RectTransform boardArea;
@@ -125,6 +133,7 @@ namespace Cameli.Game
             hud.Refresh(session);
             oopsUntil = 0f;
             RefreshFace();
+            ResetPathGuide();
             RefreshGuides();
         }
 
@@ -146,6 +155,8 @@ namespace Cameli.Game
             clearView.Hide();
             session = null;
             oopsUntil = 0f;
+            pathStep = -1;
+            hud.StopPulses();
             RefreshFace();
             gameObject.SetActive(false);
         }
@@ -180,7 +191,17 @@ namespace Cameli.Game
         }
 
         /// <summary>Drops queued swipes, e.g. when a window opens over the board.</summary>
-        internal void ClearBufferedMoves() => bufferedMoves.Clear();
+        internal void ClearBufferedMoves() => DropBufferedMoves();
+
+        /// <summary>
+        /// Empties the swipe queue. The path glow waits while swipes are queued (<see cref="RefreshGlow"/>), so it is
+        /// brought back here.
+        /// </summary>
+        void DropBufferedMoves()
+        {
+            bufferedMoves.Clear();
+            RefreshGlow();
+        }
 
         void Update()
         {
@@ -225,6 +246,7 @@ namespace Cameli.Game
             int from = session.State.Position;
             board.FaceToken(direction);
             MoveOutcome outcome = session.Move(direction);
+            AdvancePathGuide(direction, outcome);
 
             switch (outcome)
             {
@@ -232,14 +254,15 @@ namespace Cameli.Game
                 case MoveOutcome.Ate:
                 case MoveOutcome.PassedGate:
                 case MoveOutcome.Cleared:
-                    board.ClearGuides(); // also stops a hint's blinking
+                    board.ClearGuides(); // also stops a hint's blinking; the next guides show on landing
+                    hud.SetCountPulse(false);
                     hud.ShowMessage(outcome == MoveOutcome.PassedGate ? "문이 색을 가져갔어요. 새로 섞어 보세요." : "");
                     board.AnimateMove(from, session.State.Position, () => OnMoveLanded(outcome));
                     break;
 
                 case MoveOutcome.BlockedByGate:
                 {
-                    bufferedMoves.Clear();
+                    DropBufferedMoves(); // also refreshes the glow, as a blocked move ends the path guide
                     int gateCell = Neighbor(from, direction);
                     board.Shake(gateCell);
                     Sfx.Play(SfxKind.Blocked);
@@ -250,14 +273,14 @@ namespace Cameli.Game
                 }
 
                 case MoveOutcome.BlockedByWall:
-                    bufferedMoves.Clear();
+                    DropBufferedMoves();
                     board.Shake(Neighbor(from, direction));
                     Sfx.Play(SfxKind.Blocked);
                     Startle();
                     break;
 
                 case MoveOutcome.BlockedByEdge:
-                    bufferedMoves.Clear();
+                    DropBufferedMoves();
                     board.Shake(-1);
                     Sfx.Play(SfxKind.Blocked);
                     Startle();
@@ -304,12 +327,27 @@ namespace Cameli.Game
 
             if (outcome == MoveOutcome.Cleared)
             {
+                hud.StopPulses();
                 StartCoroutine(ClearSequence());
                 return;
             }
-            if (Rules.IsOverfilled(Stage, session.State)) hud.ShowMessage(OverfilledMessage);
+            if (CannotClear())
+            {
+                hud.ShowMessage(StuckMessage);
+                hud.SetRestartPulse(true);
+            }
+            else if (Rules.IsOverfilled(Stage, session.State))
+            {
+                hud.ShowMessage(OverfilledMessage);
+            }
             RefreshGuides();
         }
+
+        /// <summary>
+        /// Tutorial nudge: on a tutorial stage without gates, a color has more drops than the target uses, so the attempt
+        /// can't clear any more. Other stages leave it to the player (only the overfill message).
+        /// </summary>
+        bool CannotClear() => Stage.IsTutorial && Stage.Gates.Count == 0 && Rules.ExceedsTarget(Stage, session.State);
 
         /// <summary>Records the clear right away (as the prototype did), then shows the clear view after a beat.</summary>
         IEnumerator ClearSequence()
@@ -333,16 +371,29 @@ namespace Cameli.Game
         }
 
         /// <summary>
+        /// Outside the tutorial, the first time ever a visit reaches <see cref="HintIntroRestarts"/> restarts, the hint
+        /// button pulses (until pressed, cleared, or left) with a line about it.
+        /// </summary>
+        void MaybeIntroduceHint()
+        {
+            if (Stage.IsTutorial || session.Restarts != HintIntroRestarts || HintStore.IntroShown) return;
+            HintStore.IntroShown = true;
+            hud.SetHintPulse(true);
+            hud.ShowMessage(HintIntroMessage);
+        }
+
+        /// <summary>
         /// Shows one recipe color the attempt hasn't revealed yet, picked at random: its cells blink until the next
         /// move and it stays on the goal card until a restart. Uses one of today's hints, or once they are gone
         /// offers the ad, which uses the hint right away. Free once every color is revealed (it only says so).
         /// </summary>
         void OnHintPressed()
         {
-            if (!Interactive) return;
+            if (!Interactive || Stage.IsTutorial) return; // the tutorial has no hint button
             board.CompleteAnimation();
-            bufferedMoves.Clear();
+            DropBufferedMoves();
             if (session == null || session.IsCleared) return; // the landing move may have cleared the stage
+            hud.SetHintPulse(false);
 
             if (!session.CanRevealColor)
             {
@@ -386,6 +437,7 @@ namespace Cameli.Game
             bufferedMoves.Clear();
             playtestLog.CountRestart();
             ShowFreshBoard();
+            MaybeIntroduceHint();
         }
 
         /// <summary>
@@ -404,38 +456,79 @@ namespace Cameli.Game
             ShowFreshBoard();
         }
 
+        /// <summary>A new attempt or visit at the start: tutorial guides from the beginning, and no restart nudge.</summary>
         void ShowFreshBoard()
         {
             board.Refresh(session.State);
             board.SnapToken(session.State.Position);
             hud.Refresh(session);
             hud.ShowMessage("");
+            hud.SetRestartPulse(false);
             oopsUntil = 0f;
             RefreshFace();
+            ResetPathGuide();
             RefreshGuides();
         }
 
-        /// <summary>Before the first move, shows the stage's tutorial focus cell and finger swipe; clears the guides otherwise.</summary>
+        /// <summary>
+        /// Shows the tutorial guides for the board at rest: the glow (<see cref="RefreshGlow"/>), and before the first
+        /// move the finger swipe and the count highlight. Also stops a hint's blinking, so call it only when that ends anyway:
+        /// on landing, entering, or a fresh start.
+        /// </summary>
         void RefreshGuides()
         {
             board.ClearGuides();
-            if (session == null || session.IsCleared || session.State.Moves > 0) return;
-            if (Stage.FocusIndex >= 0) board.ShowGlow(Stage.FocusIndex);
-            if (Stage.Swipe.HasValue) board.ShowSwipe(Stage.StartIndex, Stage.Swipe.Value);
+            bool fresh = session != null && !session.IsCleared && session.State.Moves == 0;
+            hud.SetCountPulse(fresh && Stage.Highlight == StageHighlight.Count);
+            RefreshGlow();
+            if (fresh && Stage.Swipe.HasValue) board.ShowSwipe(Stage.StartIndex, Stage.Swipe.Value);
+        }
+
+        /// <summary>
+        /// The glowing cell: the path guide's next cell, else the focus cell before the first move. Leaves the hint's
+        /// blinking alone. Waits while a move slides or swipes are queued, so the glow never runs ahead of the token;
+        /// the landing (or <see cref="DropBufferedMoves"/>) shows it.
+        /// </summary>
+        void RefreshGlow()
+        {
+            if (session == null || board.IsAnimating) return;
+            int cell = -1;
+            if (!session.IsCleared)
+            {
+                if (pathStep >= 0 && bufferedMoves.Count == 0) cell = Neighbor(session.State.Position, Stage.Path[pathStep]);
+                else if (pathStep < 0 && session.State.Moves == 0) cell = Stage.FocusIndex;
+            }
+            if (cell >= 0) board.ShowGlow(cell);
+            else board.HideGlow();
+        }
+
+        /// <summary>Starts the path guide over at its first step, or leaves it off on stages without a path.</summary>
+        void ResetPathGuide() => pathStep = Stage.Path.Count > 0 ? 0 : -1;
+
+        /// <summary>
+        /// A move along the path moves the guide on to the next step (off after the last); any other move, blocked
+        /// ones included, ends it for the attempt. The new glow shows once the move lands.
+        /// </summary>
+        void AdvancePathGuide(Direction direction, MoveOutcome outcome)
+        {
+            if (pathStep < 0) return;
+            if (outcome.IsMove() && direction == Stage.Path[pathStep]) pathStep++;
+            else pathStep = -1;
+            if (pathStep >= Stage.Path.Count) pathStep = -1;
         }
 
         void OnMenuPressed()
         {
             // Once cleared the clear view is showing or about to; the menu would hide the bloom under it.
             if (session == null || session.IsCleared) return;
-            bufferedMoves.Clear();
+            DropBufferedMoves();
             openMenu();
         }
 
         void OnTitleHeld()
         {
             if (session == null || overlayOpen()) return;
-            bufferedMoves.Clear();
+            DropBufferedMoves();
             openPlaytest();
         }
 
