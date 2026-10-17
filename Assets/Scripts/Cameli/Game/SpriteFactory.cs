@@ -20,6 +20,7 @@ namespace Cameli.Game
         static Sprite flowerOuter, flowerInner, bud, sepal;
         static Sprite menuIcon, restartIcon, bulbIcon, gridIcon, playIcon, lockIcon, backIcon;
         static Sprite fencePlanks, fenceRails, fenceOutline, fencePlankOutline, leaf, leafVein;
+        static Sprite petal;
 
         /// <summary>Rounded square, 9-sliced so it can stretch to any size.</summary>
         public static Sprite RoundedRect => roundedRect != null ? roundedRect : roundedRect = Make("RoundedRect", 64, 22, RoundedRectAlpha);
@@ -85,6 +86,12 @@ namespace Cameli.Game
         /// <summary>The leaf's midrib, drawn over <see cref="Leaf"/> in a lighter tint.</summary>
         public static Sprite LeafVein => leafVein != null ? leafVein : leafVein =
             MakeShape("Leaf Vein", 128, p => Segment(p, new Vector2(0f, -0.66f), new Vector2(0f, 0.6f), 0.025f));
+
+        /// <summary>
+        /// A loose camellia petal falling on the clear screen: a soft egg, 3:4, its narrow end up, filling the square's
+        /// height. Draw it in a square rect; the shape is 75% as wide as it is tall.
+        /// </summary>
+        public static Sprite Petal => petal != null ? petal : petal = MakeShape("Petal", 128, PetalShape);
 
         // Icons, tinted by Image.color.
 
@@ -223,6 +230,18 @@ namespace Cameli.Game
         /// <summary>Where two circles overlap: a lens with points at the top and bottom.</summary>
         static float LeafShape(Vector2 p) => Mathf.Max(Disk(p, new Vector2(-0.75f, 0f), 1.1f), Disk(p, new Vector2(0.75f, 0f), 1.1f));
 
+        /// <summary>
+        /// Two half ellipses sharing their widest line a third of the way up: a tall one above, a squat one below
+        /// (CSS border-radius 60% / 80% 80% 40% 40% on a 3:4 box).
+        /// </summary>
+        static float PetalShape(Vector2 p)
+        {
+            const float halfHeight = 0.92f, halfWidth = halfHeight * 0.75f;
+            const float waist = -halfHeight / 3f;
+            float radiusY = p.y >= waist ? halfHeight * 4f / 3f : halfHeight * 2f / 3f;
+            return Ellipse(p, new Vector2(0f, waist), new Vector2(halfWidth, radiusY));
+        }
+
         static float BulbShape(Vector2 p)
         {
             float d = Disk(p, new Vector2(0f, 0.22f), 0.5f);
@@ -263,6 +282,15 @@ namespace Cameli.Game
             new Vector2(Mathf.Cos(degrees * Mathf.Deg2Rad), Mathf.Sin(degrees * Mathf.Deg2Rad)) * radius;
 
         static float Disk(Vector2 p, Vector2 center, float radius) => (p - center).magnitude - radius;
+
+        /// <summary>Approximate distance to an axis-aligned ellipse: exact on the outline, good enough for antialiasing.</summary>
+        static float Ellipse(Vector2 p, Vector2 center, Vector2 radius)
+        {
+            Vector2 q = p - center;
+            float k0 = new Vector2(q.x / radius.x, q.y / radius.y).magnitude;
+            float k1 = new Vector2(q.x / (radius.x * radius.x), q.y / (radius.y * radius.y)).magnitude;
+            return k1 > 0f ? k0 * (k0 - 1f) / k1 : -Mathf.Min(radius.x, radius.y);
+        }
 
         /// <summary>Rounded box; <paramref name="half"/> is the half size including the rounding.</summary>
         static float Box(Vector2 p, Vector2 center, Vector2 half, float radius)

@@ -1,0 +1,100 @@
+<!doctype html>
+<!--
+  The app icon (decided 2026-10-17, artifact "Cameli Garden 아트 시안" Q1/Q2): white Cameli exactly in the middle of a
+  연두 square, with camellias in the game's colors scattered around like the title screen's, leaves tucked behind them
+  and peeking in from the edges. render.sh opens this page once per part and saves a PNG to Assets/CameliIcon/, which
+  "Cameli → 모바일 프로젝트 설정 적용" puts into the player settings.
+
+  ?part=ios         the full square, opaque (iOS crops the corners itself; also the default and Android legacy icon)
+  ?part=round       the full icon cut to a circle (Android round icon)
+  ?part=android_bg  Android adaptive background: the square and the flowers, on a 108 canvas whose middle 72 is the icon
+  ?part=android_fg  Android adaptive foreground: Cameli alone, same canvas, transparent
+
+  Units: the icon is a 100 x 100 square, y down.
+-->
+<meta charset="utf-8">
+<style>
+  html, body { margin: 0; background: transparent; }
+  svg { display: block; width: 100vw; height: 100vh; }
+</style>
+<body>
+<script src="cameli.js"></script>
+<script>
+(() => {
+  const BACKGROUND = [163, 207, 94];   // 연두
+  const GLOW = 0.3;                     // the middle is this much lighter, so Cameli stands out
+  const CAMELI_SIZE = 68;               // Cameli's wider side, outline included
+  const LEAF_GREENS = ["#4F8A38", "#62A044"];
+  // Flower colors: Palette R, P, Y, B, O (Core/Palette.cs), and a pink.
+  const COLORS = [[232, 48, 48], [174, 81, 199], [255, 246, 75], [71, 163, 255], [247, 150, 70], [232, 121, 138]];
+  // x, y, radius, tilt, color, and the directions (degrees, 0 = right, y down) of the leaves tucked behind it. Big ones
+  // in two opposite corners, cut a little by the edge, mid and small ones in between, none touching Cameli.
+  const FLOWERS = [
+    [17, 16, 14, 18, 0, [-5, 112]], [46, 9, 5.5, 30, 2, []], [83, 17, 10, -14, 1, [196, 62]],
+    [13, 83, 9.5, -22, 3, [252, 22]], [41, 91, 5, -8, 5, []], [83, 84, 14.5, 9, 4, [176, 302]],
+  ];
+  // Loose leaves peeking in from the edges: x, y, length, rotation, green.
+  const LEAVES = [[2, 50, 22, 70, 1], [98, 52, 20, -65, 1]];
+
+  const rgb = (c) => `rgb(${c[0]}, ${c[1]}, ${c[2]})`;
+  const shade = (c, k) => c.map((v) => Math.round(v * k));
+  const tint = (c, k) => c.map((v) => Math.round(v + (255 - v) * k));
+
+  // A camellia centered at (x, y) with radius r: five petals, five lighter inner petals, a pollen center.
+  function flower(x, y, r, c) {
+    const k = r / 50, p = rgb(c), d = rgb(shade(c, 0.74)), l = rgb(tint(c, 0.28));
+    let s = `<g transform="translate(${x} ${y}) scale(${k})">`;
+    for (let i = 0; i < 5; i++) s += `<ellipse cx="0" cy="-22" rx="17" ry="24" transform="rotate(${i * 72})" fill="${p}" stroke="${d}" stroke-width="2.5"/>`;
+    for (let i = 0; i < 5; i++) s += `<ellipse cx="0" cy="-12" rx="10" ry="14" transform="rotate(${i * 72 + 36})" fill="${l}" stroke="${d}" stroke-width="2"/>`;
+    return s + '<circle r="8" fill="#F6D15B" stroke="#C9A12E" stroke-width="2"/></g>';
+  }
+  function leaf(x, y, len, rot, color) {
+    return `<g transform="translate(${x} ${y}) rotate(${rot}) scale(${len / 40})"><path d="M0 -19 C 10 -10, 10 8, 0 19 C -10 8, -10 -10, 0 -19 Z" fill="${color}"/><path d="M0 -15 L0 16" stroke="rgb(255 255 255 / 0.3)" stroke-width="1.2" fill="none"/></g>`;
+  }
+
+  // The figure's box in the square, from the shapes (getBBox leaves out strokes: the body's ink reaches OUTLINE past
+  // its shapes, the tail's line half of that).
+  function cameliBox() {
+    const probe = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    probe.setAttribute("viewBox", "0 0 100 100");
+    probe.style.cssText = "position:absolute; width:100px; height:100px; left:-9999px; top:0";
+    probe.innerHTML = `<g>${CameliArt.layer("body_fill")}</g><g>${CameliArt.layer("tail_fill")}</g>`;
+    document.body.appendChild(probe);
+    const boxes = [[probe.children[0].getBBox(), CameliArt.OUTLINE], [probe.children[1].getBBox(), CameliArt.OUTLINE / 2]];
+    probe.remove();
+    const x0 = Math.min(...boxes.map(([b, p]) => b.x - p)), y0 = Math.min(...boxes.map(([b, p]) => b.y - p));
+    const x1 = Math.max(...boxes.map(([b, p]) => b.x + b.width + p)), y1 = Math.max(...boxes.map(([b, p]) => b.y + b.height + p));
+    return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+  }
+  function cameli() {
+    const b = cameliBox(), k = CAMELI_SIZE / Math.max(b.w, b.h);
+    return `<g transform="translate(${50 - (b.x + b.w / 2) * k} ${50 - (b.y + b.h / 2) * k}) scale(${k})">${CameliArt.figure()}</g>`;
+  }
+
+  // The background reaches past the square (the Android canvas is wider), the glow stays on the icon's middle.
+  const ground = `<defs><radialGradient id="glow" gradientUnits="userSpaceOnUse" cx="50" cy="50" r="50">
+      <stop offset="0" stop-color="${rgb(tint(BACKGROUND, GLOW))}"/><stop offset="1" stop-color="${rgb(tint(BACKGROUND, GLOW))}" stop-opacity="0"/></radialGradient></defs>
+    <rect x="-50" y="-50" width="200" height="200" fill="${rgb(BACKGROUND)}"/><rect x="-50" y="-50" width="200" height="200" fill="url(#glow)"/>`;
+  const garden = LEAVES.map(([x, y, len, rot, g]) => leaf(x, y, len, rot, LEAF_GREENS[g])).join("") +
+    FLOWERS.flatMap(([x, y, r, , , dirs]) => dirs.map((a, i) => {
+      const len = r * 2.3, rad = a * Math.PI / 180;
+      return leaf(x + Math.cos(rad) * len * 0.5, y + Math.sin(rad) * len * 0.5, len, a + 90, LEAF_GREENS[i % 2]);
+    })).join("") +
+    FLOWERS.map(([x, y, r, tilt, c]) => `<g transform="rotate(${tilt} ${x} ${y})">${flower(x, y, r, COLORS[c])}</g>`).join("");
+
+  const part = new URLSearchParams(location.search).get("part") || "ios";
+  let svg;
+  if (part === "android_bg" || part === "android_fg") {
+    // Adaptive icons are 108 x 108 dp, of which the launcher shows the middle 72 (more or less, by mask and motion).
+    const inner = part === "android_bg" ? ground + garden : cameli();
+    svg = `<svg viewBox="0 0 108 108" xmlns="http://www.w3.org/2000/svg"><g transform="translate(18 18) scale(0.72)">${inner}</g></svg>`;
+  } else {
+    const all = ground + garden + cameli();
+    svg = part === "round"
+      ? `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><defs><clipPath id="round"><circle cx="50" cy="50" r="50"/></clipPath></defs><g clip-path="url(#round)">${all}</g></svg>`
+      : `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">${all}</svg>`;
+  }
+  document.body.innerHTML = svg;
+})();
+</script>
+</body>

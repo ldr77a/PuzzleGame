@@ -8,10 +8,10 @@ namespace Cameli.Game
 {
     /// <summary>
     /// The clear sequence over the play screen (Phase 2 spec §5): the board fades back, a camellia in the target
-    /// color blooms, then the title, the stars one by one, the restart count, the star-cap reason, and the buttons. A tap
-    /// during the sequence jumps to the end. The buttons only take input once everything is shown, so the
-    /// skipping tap can never press one, and a moment longer after a skip, so neither can the second tap of a
-    /// double tap.
+    /// color blooms and petals in its color fall, then the title, the stars one by one, the restart count, the star-cap
+    /// reason, and the buttons. A tap during the sequence jumps to the end. The buttons only take input once everything
+    /// is shown, so the skipping tap can never press one, and a moment longer after a skip, so neither can the second
+    /// tap of a double tap.
     /// </summary>
     public sealed class ClearView : MonoBehaviour, IPointerClickHandler
     {
@@ -28,6 +28,9 @@ namespace Cameli.Game
         Image veil;
         RectTransform bloom;
         RectTransform flower;
+        PetalFall petals;
+        Color petalColor;
+        bool petalsDropped;
         CanvasGroup heading;
         Image[] stars;
         CanvasGroup details;
@@ -65,6 +68,7 @@ namespace Cameli.Game
             bloom = Ui.Box(Ui.NewRect("Bloom", root), new Vector2(0.5f, 0.66f), Vector2.zero, new Vector2(470f, 470f));
             bloom.pivot = new Vector2(0.5f, 0.5f);
             flower = Ui.Stretch(Blossoms.NewFlower(bloom, Color.white));
+            petals = PetalFall.Create(root); // over the flower, under the text, stars, and buttons
 
             RectTransform headingRect = Ui.Box(Ui.NewRect("Heading", root), new Vector2(0.5f, 0.46f), Vector2.zero, new Vector2(1000f, 110f));
             heading = headingRect.gameObject.AddComponent<CanvasGroup>();
@@ -104,6 +108,7 @@ namespace Cameli.Game
         {
             earned = stars;
             Blossoms.SetFlowerColor(flower, targetColor);
+            petalColor = targetColor;
             detail.text = restarts == 0 ? "한 번에 깼어요" : $"다시 하기 {restarts}번";
             reason.text = reasonLine;
             gardenButton.gameObject.SetActive(hasNext);
@@ -113,25 +118,30 @@ namespace Cameli.Game
             gameObject.SetActive(true);
             transform.SetAsLastSibling();
             StopSequence();
+            petals.Stop();
+            petalsDropped = false;
             sequence = StartCoroutine(Play());
         }
 
         public void Hide()
         {
             StopSequence();
+            petals.Stop();
             buttonsFrom = -1f;
             gameObject.SetActive(false);
         }
 
         /// <summary>
         /// Jumps to the end state; does nothing once the sequence has finished. The buttons show at once but take
-        /// taps only after <see cref="SkipGuardSeconds"/> (unscaled), so a double tap can't skip and press.
+        /// taps only after <see cref="SkipGuardSeconds"/> (unscaled), so a double tap can't skip and press. Petals that
+        /// haven't fallen yet fall from now.
         /// </summary>
         public void Skip()
         {
             if (sequence == null) return;
             StopSequence();
             ShowFinal();
+            DropPetals();
             buttons.blocksRaycasts = false; // taps meanwhile land on the veil, where a skip does nothing
             buttonsFrom = Time.unscaledTime + SkipGuardSeconds;
         }
@@ -177,6 +187,7 @@ namespace Cameli.Game
                 yield return null;
             }
             SetBloom(1f);
+            DropPetals();
             Sfx.Play(SfxKind.Clear);
 
             for (float t = 0f; t < FadeSeconds; t += Time.unscaledDeltaTime)
@@ -217,6 +228,14 @@ namespace Cameli.Game
             foreach (Image star in stars) star.rectTransform.localScale = Vector3.one;
             details.alpha = 1f;
             SetButtons(true);
+        }
+
+        /// <summary>Starts the petals once per showing: when the flower is open, or at a skip before that.</summary>
+        void DropPetals()
+        {
+            if (petalsDropped) return;
+            petalsDropped = true;
+            petals.Drop(petalColor);
         }
 
         void SetVeil(float k)

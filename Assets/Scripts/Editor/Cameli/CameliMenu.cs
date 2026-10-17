@@ -7,6 +7,7 @@ using System.Text.RegularExpressions;
 using Cameli.Core;
 using Cameli.Game;
 using UnityEditor;
+using UnityEditor.Android;
 using UnityEditor.Build;
 using UnityEditor.Build.Reporting;
 using UnityEditor.SceneManagement;
@@ -31,6 +32,9 @@ namespace Cameli.EditorTools
         static string BuildRoot =>
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Personal), "Builds", "CameliGarden");
 
+        /// <summary>The app icon pictures, drawn by Tools/CameliArt/render.sh from icon.html.</summary>
+        const string IconFolder = "Assets/CameliIcon/";
+
         [MenuItem("Cameli/모바일 프로젝트 설정 적용")]
         static void ApplyMobileSettings()
         {
@@ -38,10 +42,68 @@ namespace Cameli.EditorTools
             PlayerSettings.defaultInterfaceOrientation = UIOrientation.Portrait;
             PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Android, ApplicationId);
             PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.iOS, ApplicationId);
+            ApplyLaunchScreen();
+            bool icons = ApplyIcons();
             AssetDatabase.SaveAssets();
             EditorUtility.DisplayDialog("Cameli",
-                $"세로 화면 고정, 제품명 \"Cameli Garden\", 임시 번들 ID {ApplicationId}를 적용했어요.", "확인");
+                $"세로 화면 고정, 제품명 \"Cameli Garden\", 임시 번들 ID {ApplicationId}를 적용했어요.\n" +
+                "Unity 로고 화면을 끄고, 켜질 때 바탕을 타이틀과 같은 색으로 했어요.\n" +
+                (icons
+                    ? "앱 아이콘(iOS, Android 적응형)을 넣었어요."
+                    : $"{IconFolder}에 아이콘 그림이 없어서 아이콘은 넣지 못했어요. Tools/CameliArt/render.sh로 만든 뒤 다시 실행해 주세요."),
+                "확인");
         }
+
+        /// <summary>
+        /// Opening the app goes straight to the title (Phase 2 spec §4): no "Made with Unity" (every license may turn it
+        /// off from Unity 6), and while the game loads the screen is the title's background color.
+        /// </summary>
+        static void ApplyLaunchScreen()
+        {
+            PlayerSettings.SplashScreen.show = false;
+            PlayerSettings.SplashScreen.showUnityLogo = false;
+            PlayerSettings.SplashScreen.backgroundColor = Theme.Background;
+            // iOS shows a launch storyboard until the first frame; "image and background" without an image is plain color.
+            PlayerSettings.iOS.SetiPhoneLaunchScreenType(iOSLaunchScreenType.ImageAndBackgroundRelative);
+            PlayerSettings.iOS.SetiPadLaunchScreenType(iOSLaunchScreenType.ImageAndBackgroundRelative);
+            // Its color has no scripting API, so it is set on the serialized player settings.
+            var settings = new SerializedObject(Unsupported.GetSerializedAssetInterfaceSingleton("PlayerSettings"));
+            foreach (string name in new[] { "iOSLaunchScreenBackgroundColor", "iOSLaunchScreeniPadBackgroundColor" })
+            {
+                SerializedProperty color = settings.FindProperty(name);
+                if (color != null) color.colorValue = Theme.Background;
+                else Debug.LogWarning($"플레이어 설정에 {name} 항목이 없어요. iOS 시작 화면 색은 Player Settings에서 직접 바꿔 주세요.");
+            }
+            settings.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        /// <summary>
+        /// Points the player settings at the icon pictures in <see cref="IconFolder"/>: the opaque square for the
+        /// default and every iOS slot (iOS rounds the corners itself), and the background and foreground layers for
+        /// Android's adaptive icon. render.sh redraws the pictures in place, so this only has to run once. False, changing
+        /// nothing, when a picture is missing.
+        /// </summary>
+        static bool ApplyIcons()
+        {
+            Texture2D square = Icon("icon_ios"), back = Icon("icon_android_bg"), front = Icon("icon_android_fg");
+            if (square == null || back == null || front == null) return false;
+
+            PlayerSettings.SetIcons(NamedBuildTarget.Unknown, new[] { square }, IconKind.Any);
+            foreach (PlatformIconKind kind in PlayerSettings.GetSupportedIconKinds(NamedBuildTarget.iOS))
+                SetPlatformIcons(NamedBuildTarget.iOS, kind, square);
+            // Layer 0 is the background, 1 the foreground.
+            SetPlatformIcons(NamedBuildTarget.Android, AndroidPlatformIconKind.Adaptive, back, front);
+            return true;
+        }
+
+        static void SetPlatformIcons(NamedBuildTarget target, PlatformIconKind kind, params Texture2D[] layers)
+        {
+            PlatformIcon[] icons = PlayerSettings.GetPlatformIcons(target, kind);
+            foreach (PlatformIcon icon in icons) icon.SetTextures(layers);
+            PlayerSettings.SetPlatformIcons(target, kind, icons);
+        }
+
+        static Texture2D Icon(string name) => AssetDatabase.LoadAssetAtPath<Texture2D>(IconFolder + name + ".png");
 
         [MenuItem("Cameli/프로토타입 씬 만들기")]
         static void CreatePrototypeScene() => CreateAppScene(ScenePath, "Cameli Game", typeof(CameliGame));
