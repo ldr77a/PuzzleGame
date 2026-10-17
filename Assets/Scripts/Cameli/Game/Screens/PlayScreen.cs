@@ -163,6 +163,12 @@ namespace Cameli.Game
             if (session != null) playtestLog.End(PlaytestLog.ResultQuit, session.State.Moves, 0);
         }
 
+        /// <summary>Coming back to the app may cross midnight, when the day's hints refill: update the hint button.</summary>
+        void OnApplicationFocus(bool focused)
+        {
+            if (focused && session != null) hud.Refresh(session);
+        }
+
         /// <summary>Drops queued swipes, e.g. when a window opens over the board.</summary>
         internal void ClearBufferedMoves() => bufferedMoves.Clear();
 

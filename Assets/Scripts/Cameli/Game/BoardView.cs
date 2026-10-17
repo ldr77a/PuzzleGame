@@ -346,6 +346,7 @@ namespace Cameli.Game
             {
                 Ui.Stretch(Ui.NewImage("Fence Outline", cell, SpriteFactory.FenceOutline, Theme.FenceOutline).rectTransform);
                 Ui.Stretch(Ui.NewImage("Fence Rails", cell, SpriteFactory.FenceRails, Theme.FenceRail).rectTransform);
+                Ui.Stretch(Ui.NewImage("Fence Plank Outline", cell, SpriteFactory.FencePlankOutline, Theme.FenceOutline).rectTransform);
                 Ui.Stretch(Ui.NewImage("Fence Planks", cell, SpriteFactory.FencePlanks, Theme.FencePlank).rectTransform);
             }
             else if (definition.Kind == CellKind.Start)

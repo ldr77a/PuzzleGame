@@ -20,7 +20,7 @@ namespace Cameli.Game
         static Sprite flowerOuter, flowerInner, bud, sepal;
         static Sprite crest, crestOutline, tail, tailOutline;
         static Sprite menuIcon, restartIcon, bulbIcon, gridIcon, playIcon, lockIcon, backIcon;
-        static Sprite fencePlanks, fenceRails, fenceOutline, leaf, leafVein;
+        static Sprite fencePlanks, fenceRails, fenceOutline, fencePlankOutline, leaf, leafVein;
 
         /// <summary>Rounded square, 9-sliced so it can stretch to any size.</summary>
         public static Sprite RoundedRect => roundedRect != null ? roundedRect : roundedRect = Make("RoundedRect", 64, 22, RoundedRectAlpha);
@@ -62,7 +62,7 @@ namespace Cameli.Game
         public static Sprite Tail => tail != null ? tail : tail = MakeShape("Tail", 128, TailShape);
         public static Sprite TailOutline => tailOutline != null ? tailOutline : tailOutline = MakeShape("Tail Outline", 128, p => TailShape(p) - CameliOutline);
 
-        // Wooden fence for wall cells (Phase 2 spec §15). Layers share one square: outline, rails, then planks.
+        // Wooden fence for wall cells (Phase 2 spec §15). Layers share one square: outline, rails, plank outline, then planks.
         // BoardView bridges the gap between neighboring fence cells with the geometry below.
 
         /// <summary>Fence rails in normalized units (-1..1, y up): two bars across the whole cell.</summary>
@@ -85,6 +85,13 @@ namespace Cameli.Game
         /// <summary>Planks and rails grown by the outline width; drawn first, in a darker brown.</summary>
         public static Sprite FenceOutline => fenceOutline != null ? fenceOutline : fenceOutline =
             MakeShape("Fence Outline", 256, p => Mathf.Min(FencePlanksShape(p), FenceRailsShape(p)) - FenceOutlineWidth);
+
+        /// <summary>
+        /// The planks alone grown by half the outline width, drawn over the rails so each plank keeps an outline where a
+        /// rail crosses it. Half, because a full width on both sides would fill the gap between planks and hide the rails there.
+        /// </summary>
+        public static Sprite FencePlankOutline => fencePlankOutline != null ? fencePlankOutline : fencePlankOutline =
+            MakeShape("Fence Plank Outline", 256, p => FencePlanksShape(p) - FenceOutlineWidth / 2f);
 
         /// <summary>Camellia leaf: a pointed oval, point up, about 35% of the square wide and 80% tall.</summary>
         public static Sprite Leaf => leaf != null ? leaf : leaf = MakeShape("Leaf", 128, LeafShape);
