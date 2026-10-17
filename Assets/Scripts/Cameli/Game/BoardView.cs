@@ -37,7 +37,8 @@ namespace Cameli.Game
         /// <summary>The glow frame sticks out this fraction of a cell on every side.</summary>
         const float GlowGrow = 0.08f;
         const float GlowPulseSpeed = 4f;
-        const float BlinksPerSecond = 1.6f;
+        /// <summary>The hint's blinking: one slow flash about every 1.7 s (1.6 a second read as frantic).</summary>
+        const float BlinksPerSecond = 0.6f;
         const float BlinkLighten = 0.6f;
         const float BlinkGrow = 0.06f;
         const float FingerSize = 0.36f;
