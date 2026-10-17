@@ -303,7 +303,7 @@ namespace Cameli.Core
                     for (int n = 0; n < counts[k]; n++) drops = drops.Add(used[k]);
                 Rgb mix = ColorMath.Mix(drops);
                 if (ColorMath.Matches(mix, color)) continue;
-                double de = DeltaE(mix, color);
+                double de = ColorMath.DeltaE(mix, color);
                 if (de < best) { best = de; nearest = drops.ToString(); }
             }
             return best;
@@ -329,7 +329,7 @@ namespace Cameli.Core
             double best = double.MaxValue;
             for (int i = 0; i < used.Length; i++)
                 for (int j = i + 1; j < used.Length; j++)
-                    best = Math.Min(best, DeltaE(Palette.Color(used[i]), Palette.Color(used[j])));
+                    best = Math.Min(best, ColorMath.DeltaE(Palette.Color(used[i]), Palette.Color(used[j])));
             return best;
         }
 
@@ -385,24 +385,6 @@ namespace Cameli.Core
                 }
             }
             return Rec(0, total);
-        }
-
-        /// <summary>CIE76 color difference: straight-line distance in CIELAB (D65). About 2.3 is just noticeable.</summary>
-        public static double DeltaE(Rgb a, Rgb b)
-        {
-            double[] la = Lab(a), lb = Lab(b);
-            return Math.Sqrt(Math.Pow(la[0] - lb[0], 2) + Math.Pow(la[1] - lb[1], 2) + Math.Pow(la[2] - lb[2], 2));
-        }
-
-        static double[] Lab(Rgb c)
-        {
-            double Lin(byte v) { double x = v / 255.0; return x <= 0.04045 ? x / 12.92 : Math.Pow((x + 0.055) / 1.055, 2.4); }
-            double r = Lin(c.R), g = Lin(c.G), b = Lin(c.B);
-            double X = (0.4124 * r + 0.3576 * g + 0.1805 * b) / 0.95047;
-            double Y = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-            double Z = (0.0193 * r + 0.1192 * g + 0.9505 * b) / 1.08883;
-            double F(double t) => t > 0.008856 ? Math.Pow(t, 1.0 / 3) : 7.787 * t + 16.0 / 116;
-            return new[] { 116 * F(Y) - 16, 500 * (F(X) - F(Y)), 200 * (F(Y) - F(Z)) };
         }
 
         /// <summary>A copy of <paramref name="file"/> with every gate cell turned into a wall.</summary>

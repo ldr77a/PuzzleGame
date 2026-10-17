@@ -273,8 +273,8 @@ namespace Cameli.Game
         }
 
         /// <summary>
-        /// Puts the same face on the board token and the goal card: Happy once the clearing move has landed (this is
-        /// only called when no move is sliding), Oops while the mix is overfilled or right after a bump, else Normal.
+        /// The board token's face: Happy once the clearing move has landed (this is only called when no move is
+        /// sliding), Oops while the mix is overfilled or right after a bump, else Normal.
         /// </summary>
         void RefreshFace()
         {
@@ -285,7 +285,6 @@ namespace Cameli.Game
                 else if (Rules.IsOverfilled(Stage, session.State) || Time.unscaledTime < oopsUntil) face = CameliFace.Oops;
             }
             board.SetFace(face);
-            hud.SetFace(face);
         }
 
         void OnMoveLanded(MoveOutcome outcome)

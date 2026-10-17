@@ -6,36 +6,48 @@ using UnityEngine.UI;
 namespace Cameli.Game
 {
     /// <summary>
-    /// The white card above the board (Phase 2 spec §2): the bud to bloom in the target color, the drop slots
-    /// (eaten drops as colored dots in eating order, the rest dashed), "방울 x/y", a chip per recipe color the
-    /// attempt's hints revealed (color only, no drop count), and Cameli in the current mix. The chips stay in the
-    /// middle column: on one row, or on two when that lets them be bigger, shrunk to fit either way (up to five).
+    /// The white card above the board (Phase 2 spec §2, §17). Left: the bud to bloom in the target color. Middle, centered
+    /// as one block: the drop slots (eaten drops as colored dots in eating order, the rest dashed; two rows from six
+    /// slots), the count "x/y", and a chip per recipe color the attempt's hints revealed (color only, no drop count).
+    /// Right: how similar the mix is to the target, in percent. No captions; the current color shows on the board's Cameli.
     /// </summary>
     sealed class GoalCard
     {
         public const float Height = 340f;
 
         const float SideColumn = 230f;
-        const float FigureSize = 170f;
+        const float BudSize = 170f;
+
+        /// <summary>Slots in one row; more wrap into two rows, the first one longer (6 is 3 + 3, 7 is 4 + 3).</summary>
+        const int SlotsPerRow = 5;
         const float SlotSize = 58f;
         const float SlotGap = 14f;
-        const float SlotRowTop = 50f;
-        const float ChipTop = SlotRowTop + SlotSize + 96f;
-        const float ChipBottomMargin = 12f;
+        const float SlotRowGap = 12f;
+        const float CountHeight = 56f;
+        const float CountGap = 10f;
+        const float ChipsGap = 12f;
+
+        /// <summary>Space kept free above and below the middle block; the chips shrink to stay inside it.</summary>
+        const float Margin = 18f;
+
+        const int PercentSize = 76;
+        const int PercentSignSize = 44;
+
         const float ChipHeight = 64f;
         const float ChipGap = 14f;
         const float ChipRowGap = 10f;
         const float ChipDot = 32f;
         const float ChipPadLeft = 18f, ChipPadRight = 22f, ChipSpacing = 10f;
 
-        /// <summary>How far the chips may reach into the side columns: less than the space beside the bud and Cameli.</summary>
+        /// <summary>How far the chips may reach into the side columns: less than the space beside the bud and the percent.</summary>
         const float ChipOverhang = 20f;
 
         readonly RectTransform bud;
-        readonly CameliFigure cameli;
-        readonly RectTransform slotRow;
+        readonly RectTransform middle;
+        readonly RectTransform slotArea;
         readonly List<Slot> slots = new List<Slot>();
-        readonly Text dropsLabel;
+        readonly Text countLabel;
+        readonly Text similarityLabel;
         readonly RectTransform chipArea;
         readonly RectTransform chipBlock;
         readonly List<RectTransform> chips = new List<RectTransform>();
@@ -48,22 +60,18 @@ namespace Cameli.Game
             RectTransform root = Ui.TopStrip(card.rectTransform, top, Height, sideInset);
 
             RectTransform left = Column(root, "Target", 0f);
-            RectTransform budBox = Ui.Box(Ui.NewRect("Bud Box", left), new Vector2(0.5f, 1f), new Vector2(0f, -36f), new Vector2(FigureSize, FigureSize));
+            RectTransform budBox = Ui.Box(Ui.NewRect("Bud Box", left), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(BudSize, BudSize));
             bud = Ui.Stretch(Blossoms.NewBud(budBox, Color.white));
-            Caption(left, "피울 꽃");
 
-            RectTransform right = Column(root, "Cameli", 1f);
-            RectTransform cameliBox = Ui.Box(Ui.NewRect("Cameli Box", right), new Vector2(0.5f, 1f), new Vector2(0f, -36f), new Vector2(FigureSize, FigureSize));
-            cameli = new CameliFigure(cameliBox);
-            cameli.Face(Direction.Left); // toward the bud
-            Caption(right, "카멜리");
+            RectTransform right = Column(root, "Similarity", 1f);
+            similarityLabel = Widgets.Label(right, "Percent", "", PercentSize, Theme.Ink);
+            similarityLabel.horizontalOverflow = HorizontalWrapMode.Overflow;
+            Ui.Stretch(similarityLabel.rectTransform);
 
-            RectTransform middle = Ui.Stretch(Ui.NewRect("Drops", root), SideColumn, 0f, SideColumn, 0f);
-            slotRow = Ui.TopStrip(Ui.NewRect("Slots", middle), SlotRowTop, SlotSize);
-            dropsLabel = Widgets.Label(middle, "Drop Count", "", 42, Theme.Ink);
-            Ui.TopStrip(dropsLabel.rectTransform, SlotRowTop + SlotSize + 18f, 60f);
-
-            chipArea = Ui.TopStrip(Ui.NewRect("Recipe", middle), ChipTop, Height - ChipTop - ChipBottomMargin, -ChipOverhang);
+            middle = Ui.Stretch(Ui.NewRect("Drops", root), SideColumn, 0f, SideColumn, 0f);
+            slotArea = Ui.NewRect("Slots", middle);
+            countLabel = Widgets.Label(middle, "Drop Count", "", 42, Theme.Ink);
+            chipArea = Ui.NewRect("Recipe", middle);
             // The chips sit in one block hanging from the top center of the area; LayoutChips sizes and scales it.
             chipBlock = Ui.Box(Ui.NewRect("Chips", chipArea), new Vector2(0.5f, 1f), Vector2.zero, Vector2.zero);
         }
@@ -78,33 +86,59 @@ namespace Cameli.Game
         public void Refresh(GameSession session)
         {
             BoardState state = session.State;
-            cameli.SetColor(CameliFigure.ColorOf(state.Drops));
             int target = session.Stage.Target.Total;
             bool overfilled = Rules.IsOverfilled(session.Stage, state);
-            dropsLabel.text = $"방울 {state.Drops.Total}/{target}";
-            dropsLabel.color = overfilled ? Theme.Accent : Theme.Ink;
+            countLabel.text = $"{state.Drops.Total}/{target}";
+            countLabel.color = overfilled ? Theme.Accent : Theme.Ink;
+            // Nothing eaten yet: white would still score, so show a dash instead.
+            similarityLabel.text = state.Drops.IsEmpty
+                ? "-"
+                : $"{ColorMath.Similarity(session.Stage.TargetColor, ColorMath.Mix(state.Drops))}<size={PercentSignSize}>%</size>";
 
-            IReadOnlyList<int> order = session.MixOrder;
+            if (!SameColors(session.RevealedColors, chipColors)) SetChips(session.RevealedColors);
+            Layout(session.MixOrder, target);
+        }
+
+        /// <summary>
+        /// Places the slots, the count under them, and the chips under that, then centers the whole block in the card.
+        /// Rerun when the card's width may have changed.
+        /// </summary>
+        void Layout(IReadOnlyList<int> order, int target)
+        {
             int count = Mathf.Max(target, order.Count);
-            while (slots.Count < count) slots.Add(new Slot(slotRow));
-            float width = slotRow.rect.width > 0f ? slotRow.rect.width : 500f;
-            float size = Mathf.Min(SlotSize, (width - (count - 1) * SlotGap) / count);
+            int rows = count <= SlotsPerRow ? 1 : 2;
+            int firstRow = rows == 1 ? count : (count + 1) / 2;
+            while (slots.Count < count) slots.Add(new Slot(slotArea));
+            float width = middle.rect.width > 0f ? middle.rect.width : 540f;
+            float size = Mathf.Min(SlotSize, (width - (firstRow - 1) * SlotGap) / firstRow);
             for (int i = 0; i < slots.Count; i++)
             {
                 Slot slot = slots[i];
                 slot.Root.gameObject.SetActive(i < count);
                 if (i >= count) continue;
-                float x = (i - (count - 1) / 2f) * (size + SlotGap);
-                Ui.Box(slot.Root, new Vector2(0.5f, 0.5f), new Vector2(x, 0f), new Vector2(size, size));
+                int row = i < firstRow ? 0 : 1;
+                int inRow = row == 0 ? firstRow : count - firstRow;
+                int column = row == 0 ? i : i - firstRow;
+                float x = (column - (inRow - 1) / 2f) * (size + SlotGap);
+                Ui.Box(slot.Root, new Vector2(0.5f, 1f), new Vector2(x, -row * (size + SlotRowGap)), new Vector2(size, size));
                 if (i < order.Count) slot.ShowDrop(Theme.ToColor(Palette.Color(order[i])));
                 else slot.ShowEmpty();
             }
-            if (!SameColors(session.RevealedColors, chipColors)) SetChips(session.RevealedColors);
-            LayoutChips();
-        }
 
-        /// <summary>Cameli's expression on the card; <see cref="PlayScreen"/> keeps it the same as the board token's.</summary>
-        public void SetFace(CameliFace face) => cameli.SetFace(face);
+            float slotsHeight = rows * size + (rows - 1) * SlotRowGap;
+            float blockHeight = slotsHeight + CountGap + CountHeight;
+            float chipsHeight = 0f;
+            if (chips.Count > 0)
+            {
+                chipsHeight = LayoutChips(Height - 2f * Margin - blockHeight - ChipsGap);
+                blockHeight += ChipsGap + chipsHeight;
+            }
+
+            float top = (Height - blockHeight) / 2f;
+            Ui.TopStrip(slotArea, top, slotsHeight);
+            Ui.TopStrip(countLabel.rectTransform, top + slotsHeight + CountGap, CountHeight);
+            if (chips.Count > 0) Ui.TopStrip(chipArea, top + slotsHeight + CountGap + CountHeight + ChipsGap, chipsHeight, -ChipOverhang);
+        }
 
         /// <summary>One chip per color, in this order; the chip area hides when there are none.</summary>
         void SetChips(IReadOnlyList<int> colors)
@@ -131,14 +165,14 @@ namespace Cameli.Game
 
         /// <summary>
         /// Puts the chips on one row, or two (the first one longer) when that lets them be clearly bigger, centered, and
-        /// scales the block down until it fits the area. Rerun when the area's width may have changed.
+        /// scales the block down until it fits the middle column's width and <paramref name="room"/> in height.
+        /// Returns the block's height as drawn.
         /// </summary>
-        void LayoutChips()
+        float LayoutChips(float room)
         {
             int count = chips.Count;
-            if (count == 0) return;
-            float areaWidth = chipArea.rect.width > 0f ? chipArea.rect.width : 540f;
-            float areaHeight = Height - ChipTop - ChipBottomMargin;
+            float areaWidth = (middle.rect.width > 0f ? middle.rect.width : 540f) + 2f * ChipOverhang;
+            float areaHeight = Mathf.Max(room, 1f);
 
             float oneRow = RowWidth(0, count);
             float oneScale = Mathf.Min(1f, areaWidth / oneRow, areaHeight / ChipHeight);
@@ -163,6 +197,7 @@ namespace Cameli.Game
             chipBlock.localScale = new Vector3(scale, scale, 1f);
             PlaceRow(0, firstRow, blockWidth, 0f);
             if (firstRow < count) PlaceRow(firstRow, count, blockWidth, ChipHeight + ChipRowGap);
+            return blockHeight * scale;
         }
 
         float RowWidth(int from, int to)
@@ -220,12 +255,6 @@ namespace Cameli.Game
             column.anchoredPosition = Vector2.zero;
             column.sizeDelta = new Vector2(SideColumn, 0f);
             return column;
-        }
-
-        static void Caption(RectTransform column, string text)
-        {
-            Text caption = Widgets.Label(column, "Caption", text, 34, Theme.Muted);
-            Ui.BottomStrip(caption.rectTransform, 28f, 50f);
         }
 
         /// <summary>One drop slot: a colored dot with a faint outline, or a dashed empty circle.</summary>

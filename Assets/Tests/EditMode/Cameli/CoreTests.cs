@@ -71,6 +71,31 @@ namespace Cameli.Tests
         }
 
         [Test]
+        public void SimilarityIsFullOnlyForAMatch()
+        {
+            Rgb orange = ColorMath.Mix(DropCounts.Parse("RY"));
+            Assert.AreEqual(100, ColorMath.Similarity(orange, orange));
+            Assert.AreEqual(100, ColorMath.Similarity(orange, ColorMath.Mix(DropCounts.Parse("RRYY")))); // same ratio
+            Assert.AreEqual(100, ColorMath.Similarity(new Rgb(10, 10, 10), new Rgb(12, 8, 10)));
+            int justOff = ColorMath.Similarity(new Rgb(10, 10, 10), new Rgb(13, 10, 10)); // one step past the tolerance
+            Assert.Less(justOff, 100);
+            Assert.Greater(justOff, 90);
+        }
+
+        [Test]
+        public void SimilarityFallsWithTheColorDifference()
+        {
+            Rgb target = ColorMath.Mix(DropCounts.Parse("GGGBN"));
+            int near = ColorMath.Similarity(target, ColorMath.Mix(DropCounts.Parse("GGBN")));
+            int far = ColorMath.Similarity(target, ColorMath.Mix(DropCounts.Parse("R")));
+            Assert.Less(far, near);
+            Assert.Less(near, 100);
+            Assert.GreaterOrEqual(far, 0);
+            // ΔE 10, the ambiguity threshold, reads about 75.
+            Assert.AreEqual(75, (int)Math.Round(100 * Math.Exp(-10 / ColorMath.SimilarityFalloff)));
+        }
+
+        [Test]
         public void RecipeRoundTrips()
         {
             DropCounts drops = DropCounts.Parse("YRY");

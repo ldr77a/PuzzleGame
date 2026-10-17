@@ -105,9 +105,6 @@ namespace Cameli.Game
             hintLabel.text = hints == 0 ? "광고 보고 힌트" : $"힌트 {hints}";
         }
 
-        /// <summary>The goal card's Cameli expression. The speech bubble's face stays normal.</summary>
-        public void SetFace(CameliFace face) => card.SetFace(face);
-
         /// <summary>Shows a line between the board and the buttons for a few seconds; "" clears it.</summary>
         public void ShowMessage(string text)
         {
