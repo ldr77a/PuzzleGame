@@ -18,7 +18,6 @@ namespace Cameli.Game
         static Sprite star;
         static Sprite roundedFrame, dashedRing;
         static Sprite flowerOuter, flowerInner, bud, sepal;
-        static Sprite crest, crestOutline, tail, tailOutline, happyEye;
         static Sprite menuIcon, restartIcon, bulbIcon, gridIcon, playIcon, lockIcon, backIcon;
         static Sprite fencePlanks, fenceRails, fenceOutline, fencePlankOutline, leaf, leafVein;
 
@@ -48,23 +47,6 @@ namespace Cameli.Game
 
         /// <summary>Green calyx and stem that cup the bottom of <see cref="Bud"/>.</summary>
         public static Sprite Sepal => sepal != null ? sepal : sepal = MakeShape("Sepal", 256, SepalShape);
-
-        // Cameli parts (see CameliFigure). The outline versions are the same shape grown by the outline width.
-
-        /// <summary>
-        /// The crest is drawn this much smaller inside its square so its outline (out to |x| ≈ 1.07 at full size)
-        /// fits; <see cref="CameliFigure"/> grows the crest's rect by the same factor, so it shows at the same size.
-        /// </summary>
-        public const float CrestPadding = 1.12f;
-
-        public static Sprite Crest => crest != null ? crest : crest = MakeShape("Crest", 128, PaddedCrestShape);
-        public static Sprite CrestOutline => crestOutline != null ? crestOutline : crestOutline = MakeShape("Crest Outline", 128, p => PaddedCrestShape(p) - CameliOutline / CrestPadding);
-        public static Sprite Tail => tail != null ? tail : tail = MakeShape("Tail", 128, TailShape);
-        public static Sprite TailOutline => tailOutline != null ? tailOutline : tailOutline = MakeShape("Tail Outline", 128, p => TailShape(p) - CameliOutline);
-
-        /// <summary>A closed eye curved upward like "^": Cameli's happy face. Drawn in ink, about as wide as the open eye's rim.</summary>
-        public static Sprite HappyEye => happyEye != null ? happyEye : happyEye =
-            MakeShape("Happy Eye", 128, p => Arc(p, new Vector2(0f, -0.5f), 0.75f, 20f, 160f, 0.14f));
 
         // Wooden fence for wall cells (Phase 2 spec §15). Layers share one square: outline, rails, plank outline, then planks.
         // BoardView bridges the gap between neighboring fence cells with the geometry below.
@@ -157,7 +139,6 @@ namespace Cameli.Game
         }
 
         const float IconStroke = 0.1f;
-        const float CameliOutline = 0.17f;
 
         static float FlowerOuterShape(Vector2 p) => Petals(p, 90f, 0.52f, 0.43f, 0.45f);
         static float FlowerInnerShape(Vector2 p) => Petals(p, 126f, 0.3f, 0.28f, 0.33f);
@@ -196,27 +177,6 @@ namespace Cameli.Game
             d = Mathf.Min(d, Tapered(p, root, new Vector2(0.5f, -0.32f), 0.15f, 0.02f));
             d = Mathf.Min(d, Tapered(p, root, new Vector2(0f, -0.4f), 0.16f, 0.03f));
             return Mathf.Min(d, Segment(p, root, new Vector2(0f, -0.95f), 0.05f));
-        }
-
-        /// <summary><see cref="CrestShape"/> shrunk by <see cref="CrestPadding"/>; the distance stays in sprite units.</summary>
-        static float PaddedCrestShape(Vector2 p) => CrestShape(p * CrestPadding) / CrestPadding;
-
-        /// <summary>Three bumps along the top; the base is hidden behind the body.</summary>
-        static float CrestShape(Vector2 p)
-        {
-            float d = Box(p, new Vector2(0f, -0.3f), new Vector2(0.6f, 0.55f), 0.1f);
-            for (int i = -1; i <= 1; i++) d = Mathf.Min(d, Disk(p, new Vector2(i * 0.6f, 0.25f), 0.3f));
-            return d;
-        }
-
-        /// <summary>A stalk from the right edge (where it joins the body) that curls inward on the left.</summary>
-        static float TailShape(Vector2 p)
-        {
-            const float w = 0.14f;
-            float d = Segment(p, new Vector2(0.98f, 0.3f), new Vector2(-0.25f, 0.45f), w);
-            d = Mathf.Min(d, Arc(p, new Vector2(-0.25f, 0f), 0.45f, 90f, 270f, w));
-            d = Mathf.Min(d, Arc(p, new Vector2(-0.25f, -0.1f), 0.35f, 270f, 450f, w));
-            return Mathf.Min(d, Arc(p, new Vector2(-0.25f, 0.05f), 0.2f, 90f, 200f, w));
         }
 
         static float MenuShape(Vector2 p)

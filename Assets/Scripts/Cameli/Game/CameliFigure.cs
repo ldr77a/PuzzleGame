@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Cameli.Core;
 using UnityEngine;
 using UnityEngine.UI;
@@ -8,53 +9,39 @@ namespace Cameli.Game
     public enum CameliFace { Normal, Happy, Oops }
 
     /// <summary>
-    /// The temporary code-drawn Cameli: body tinted with the current mix, ink outline, back crest, eye, and a
-    /// curled tail, assembled from Images. Used on the board token, the target card, the speech bubble, and the
-    /// title. Everything that draws Cameli goes through this class, so real art can replace it in one place.
+    /// Cameli, stacked from the layer PNGs in <c>Resources/CameliArt/</c> (drawn by <c>Tools/CameliArt</c>, Phase 2 spec
+    /// §19): the body's ink silhouette, the tail (fill and line) over it so the two join without a line, the body fill
+    /// over the tail's root, then the face. The fills are white and take the current mix. Used on the board token, the
+    /// speech bubble, and the title. Everything that draws Cameli goes through this class, so new art only needs new PNGs.
     /// </summary>
     sealed class CameliFigure
     {
         /// <summary>
         /// How much the figure may squash and stretch: <see cref="BoardView"/>'s hop scales its amounts by this.
-        /// 1 for this drawn figure; 0 for art that must keep its shape (e.g. pixel art).
+        /// 1 for this drawing; 0 for art that must keep its shape (e.g. pixel art).
         /// </summary>
         public const float SquashStretch = 1f;
 
         /// <summary>The tail's idle sway each way, in degrees; 0 holds it still (e.g. pixel art, which shouldn't rotate).</summary>
-        const float TailSwayDegrees = 6f;
+        const float TailSwayDegrees = 5f;
         const float TailSwaySeconds = 1.6f;
 
-        /// <summary>Outline width as a fraction of the figure's size.</summary>
-        const float Outline = 0.03f;
-
         /// <summary>
-        /// The crest's rect: a 0.36 square centered at (0.44, 0.64), grown by <see cref="SpriteFactory.CrestPadding"/>
-        /// because the sprite leaves room around the shape for its outline.
+        /// Where the tail leaves the rump, in the figure square (x from left, y from bottom). The tail sways around it,
+        /// so the joint stays put under the body fill.
         /// </summary>
-        const float CrestX = 0.44f, CrestY = 0.64f, CrestHalf = 0.18f * SpriteFactory.CrestPadding;
+        static readonly Vector2 TailJoint = new Vector2(0.324f, 0.489f);
 
-        /// <summary>The tail's rect, shared by its outline.</summary>
-        const float TailXMin = 0f, TailYMin = 0.12f, TailSize = 0.36f;
+        /// <summary>Where Cameli stands in the figure square: between the feet, at their bottom. <see cref="Pose"/> scales around it. Facing left mirrors x.</summary>
+        static readonly Vector2 Feet = new Vector2(0.602f, 0.229f);
 
-        /// <summary>
-        /// Where the tail's stalk comes out of the body (the stalk's center line meets the body's edge), in the
-        /// figure square. The tail sways around this point, so the joint stays put and the rest hides in the body.
-        /// </summary>
-        const float TailJointX = 0.2f, TailJointY = 0.37f;
-
-        /// <summary>The eye: white circle in an ink rim, pupil toward the front. Oops widens the white and shrinks the pupil.</summary>
-        const float EyeX = 0.7f, EyeY = 0.5f, EyeRadius = 0.07f, EyeRimWidth = 0.02f;
-        const float PupilX = 0.74f, PupilRadius = 0.035f;
-        const float OopsEyeGrow = 1.15f, OopsPupilShrink = 0.5f;
-
-        /// <summary>Where Cameli stands in the figure square: the bottom of the body's outline, centered. <see cref="Pose"/> scales around it.</summary>
-        static readonly Vector2 Feet = new Vector2(0.5f, 0.17f - Outline);
+        const string ArtFolder = "CameliArt/";
+        static readonly Dictionary<string, Sprite> sprites = new Dictionary<string, Sprite>();
 
         readonly RectTransform figure;
-        readonly Image body;
-        readonly Image crest;
-        readonly Image tail;
-        readonly Image eyeRim, eyeWhite, pupil, happyEye;
+        readonly Image bodyFill;
+        readonly Image tailFill;
+        readonly Image faceNormal, faceHappy, faceOops;
 
         /// <summary>
         /// Fills the parent; keep the parent square. Its pivot is at Cameli's feet. The figure starts white, facing
@@ -72,31 +59,31 @@ namespace Cameli.Game
             // A child carries the facing flip, so callers can scale or animate Root freely.
             figure = Ui.Stretch(Ui.NewRect("Figure", Root));
 
-            // Outlines first, then fills, so the ink traces the outside of the whole silhouette. Facing right.
-            Image tailOutline = Part("Tail Outline", SpriteFactory.TailOutline, Theme.Ink, TailXMin, TailYMin, TailXMin + TailSize, TailYMin + TailSize);
-            Part("Crest Outline", SpriteFactory.CrestOutline, Theme.Ink, CrestX - CrestHalf, CrestY - CrestHalf, CrestX + CrestHalf, CrestY + CrestHalf);
-            Part("Body Outline", SpriteFactory.Circle, Theme.Ink, 0.19f - Outline, 0.17f - Outline, 0.85f + Outline, 0.67f + Outline);
-            tail = Part("Tail", SpriteFactory.Tail, Color.white, TailXMin, TailYMin, TailXMin + TailSize, TailYMin + TailSize);
-            crest = Part("Crest", SpriteFactory.Crest, Color.white, CrestX - CrestHalf, CrestY - CrestHalf, CrestX + CrestHalf, CrestY + CrestHalf);
-            body = Part("Body", SpriteFactory.Circle, Color.white, 0.19f, 0.17f, 0.85f, 0.67f);
-            eyeRim = Part("Eye Rim", SpriteFactory.Circle, Theme.Ink, 0f, 0f, 0f, 0f);
-            eyeWhite = Part("Eye", SpriteFactory.Circle, Color.white, 0f, 0f, 0f, 0f);
-            pupil = Part("Pupil", SpriteFactory.Circle, Theme.Ink, 0f, 0f, 0f, 0f);
-            happyEye = Part("Happy Eye", SpriteFactory.HappyEye, Theme.Ink, 0f, 0f, 0f, 0f);
-            Circle(happyEye, EyeX, EyeY, EyeRadius + EyeRimWidth);
+            Layer("Body Line", "body_line", figure);
+            RectTransform tail = Ui.NewRect("Tail", figure);
+            tail.pivot = TailJoint;
+            Ui.Stretch(tail);
+            tailFill = Layer("Tail Fill", "tail_fill", tail);
+            Layer("Tail Line", "tail_line", tail);
+            bodyFill = Layer("Body Fill", "body_fill", figure);
+            faceNormal = Layer("Face Normal", "face_normal", figure);
+            faceHappy = Layer("Face Happy", "face_happy", figure);
+            faceOops = Layer("Face Oops", "face_oops", figure);
             SetFace(CameliFace.Normal);
 
-            // The fill and its outline sway together, as two parts that sit apart in the drawing order.
-            SwayTail(tailOutline);
-            SwayTail(tail);
+            if (TailSwayDegrees > 0f)
+            {
+                var sway = tail.gameObject.AddComponent<Sway>();
+                sway.Degrees = TailSwayDegrees;
+                sway.Speed = 2f * Mathf.PI / TailSwaySeconds;
+            }
         }
 
-        /// <summary>Tints the body, crest, and tail. Pass <see cref="ColorOf"/> for a mix (white when empty).</summary>
+        /// <summary>Tints the body and the tail. Pass <see cref="ColorOf"/> for a mix (white when empty).</summary>
         public void SetColor(Color color)
         {
-            body.color = color;
-            crest.color = color;
-            tail.color = color;
+            bodyFill.color = color;
+            tailFill.color = color;
         }
 
         /// <summary>The body color for a mix: white while nothing has been eaten.</summary>
@@ -106,17 +93,9 @@ namespace Cameli.Game
         /// <summary>Normal: the open eye. Happy: the eye closed in an upward arc. Oops: a wider eye with a small pupil.</summary>
         public void SetFace(CameliFace face)
         {
-            bool open = face != CameliFace.Happy;
-            eyeRim.enabled = open;
-            eyeWhite.enabled = open;
-            pupil.enabled = open;
-            happyEye.enabled = !open;
-
-            bool oops = face == CameliFace.Oops;
-            float white = oops ? EyeRadius * OopsEyeGrow : EyeRadius;
-            Circle(eyeRim, EyeX, EyeY, white + EyeRimWidth);
-            Circle(eyeWhite, EyeX, EyeY, white);
-            Circle(pupil, PupilX, EyeY, oops ? PupilRadius * OopsPupilShrink : PupilRadius);
+            faceNormal.enabled = face == CameliFace.Normal;
+            faceHappy.enabled = face == CameliFace.Happy;
+            faceOops.enabled = face == CameliFace.Oops;
         }
 
         /// <summary>Turns toward a left or right move; up and down keep the last facing.</summary>
@@ -126,6 +105,10 @@ namespace Cameli.Game
             else if (direction == Direction.Right) FacingLeft = false;
             else return;
             figure.localScale = new Vector3(FacingLeft ? -1f : 1f, 1f, 1f);
+            // The feet sit right of center, so the flip moves them: mirror the pivot too, so Pose still scales
+            // around them. Stretch re-places the rect for the new pivot (and drops any lift; Pose sets it each frame).
+            Root.pivot = FacingLeft ? new Vector2(1f - Feet.x, Feet.y) : Feet;
+            Ui.Stretch(Root);
         }
 
         /// <summary>
@@ -140,38 +123,32 @@ namespace Cameli.Game
 
         public void Rest() => Pose(0f, 1f, 1f);
 
-        /// <summary>An Image spanning a fraction of the figure square (x from left, y from bottom).</summary>
-        Image Part(string name, Sprite sprite, Color color, float xMin, float yMin, float xMax, float yMax)
+        /// <summary>A layer filling the figure square. The PNGs carry their own ink and white; fills get tinted.</summary>
+        static Image Layer(string name, string file, RectTransform parent)
         {
-            Image image = Ui.NewImage(name, figure, sprite, color);
-            image.rectTransform.anchorMin = new Vector2(xMin, yMin);
-            image.rectTransform.anchorMax = new Vector2(xMax, yMax);
-            image.rectTransform.offsetMin = Vector2.zero;
-            image.rectTransform.offsetMax = Vector2.zero;
+            Image image = Ui.NewImage(name, parent, Art(file), Color.white);
+            Ui.Stretch(image.rectTransform);
             return image;
         }
 
-        /// <summary>Moves a part to a square centered at (x, y) with half side <paramref name="radius"/>.</summary>
-        static void Circle(Image part, float x, float y, float radius)
+        /// <summary>
+        /// A layer PNG from <c>Resources/CameliArt/</c>, loaded once. Imported as a sprite; a plain texture import still
+        /// works, as a sprite made here.
+        /// </summary>
+        static Sprite Art(string file)
         {
-            part.rectTransform.anchorMin = new Vector2(x - radius, y - radius);
-            part.rectTransform.anchorMax = new Vector2(x + radius, y + radius);
-        }
-
-        /// <summary>Rocks a tail part gently around the joint with the body (unscaled time, see <see cref="Sway"/>).</summary>
-        static void SwayTail(Image part)
-        {
-            if (TailSwayDegrees > 0f)
+            if (sprites.TryGetValue(file, out Sprite sprite)) return sprite;
+            sprite = Resources.Load<Sprite>(ArtFolder + file);
+            if (sprite == null)
             {
-                RectTransform rt = part.rectTransform;
-                // Pivot in the part's own rect; reset the offsets so the rect stays where it was.
-                rt.pivot = new Vector2((TailJointX - TailXMin) / TailSize, (TailJointY - TailYMin) / TailSize);
-                rt.offsetMin = Vector2.zero;
-                rt.offsetMax = Vector2.zero;
-                var sway = rt.gameObject.AddComponent<Sway>();
-                sway.Degrees = TailSwayDegrees;
-                sway.Speed = 2f * Mathf.PI / TailSwaySeconds;
+                var texture = Resources.Load<Texture2D>(ArtFolder + file);
+                if (texture != null)
+                    sprite = Sprite.Create(texture, new Rect(0, 0, texture.width, texture.height), new Vector2(0.5f, 0.5f), 100f, 0, SpriteMeshType.FullRect);
+                else
+                    Debug.LogError($"카멜리 그림이 없어요: Resources/{ArtFolder}{file}.png (Tools/CameliArt/render.sh로 만들어요)");
             }
+            sprites[file] = sprite;
+            return sprite;
         }
     }
 }
