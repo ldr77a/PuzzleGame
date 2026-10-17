@@ -18,7 +18,7 @@ namespace Cameli.Game
         static Sprite star;
         static Sprite roundedFrame, dashedRing;
         static Sprite flowerOuter, flowerInner, bud, sepal;
-        static Sprite crest, crestOutline, tail, tailOutline;
+        static Sprite crest, crestOutline, tail, tailOutline, happyEye;
         static Sprite menuIcon, restartIcon, bulbIcon, gridIcon, playIcon, lockIcon, backIcon;
         static Sprite fencePlanks, fenceRails, fenceOutline, fencePlankOutline, leaf, leafVein;
 
@@ -61,6 +61,10 @@ namespace Cameli.Game
         public static Sprite CrestOutline => crestOutline != null ? crestOutline : crestOutline = MakeShape("Crest Outline", 128, p => PaddedCrestShape(p) - CameliOutline / CrestPadding);
         public static Sprite Tail => tail != null ? tail : tail = MakeShape("Tail", 128, TailShape);
         public static Sprite TailOutline => tailOutline != null ? tailOutline : tailOutline = MakeShape("Tail Outline", 128, p => TailShape(p) - CameliOutline);
+
+        /// <summary>A closed eye curved upward like "^": Cameli's happy face. Drawn in ink, about as wide as the open eye's rim.</summary>
+        public static Sprite HappyEye => happyEye != null ? happyEye : happyEye =
+            MakeShape("Happy Eye", 128, p => Arc(p, new Vector2(0f, -0.5f), 0.75f, 20f, 160f, 0.14f));
 
         // Wooden fence for wall cells (Phase 2 spec §15). Layers share one square: outline, rails, plank outline, then planks.
         // BoardView bridges the gap between neighboring fence cells with the geometry below.

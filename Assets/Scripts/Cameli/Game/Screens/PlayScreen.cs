@@ -19,6 +19,9 @@ namespace Cameli.Game
         const float ClearViewDelay = 0.3f;
         const string OverfilledMessage = "방울이 너무 많아요. 다시 하기를 눌러 보세요.";
 
+        /// <summary>How long Cameli looks startled after bumping into a wall, the edge, or a closed gate.</summary>
+        const float OopsSeconds = 0.6f;
+
         /// <summary>Board taps right after entering are ignored: the second tap of a double tap on a garden tile or [다음].</summary>
         const float EnterTapGuardSeconds = 0.25f;
 
@@ -29,6 +32,9 @@ namespace Cameli.Game
         int stageIndex;
         GameSession session;
         float tapsFrom;
+
+        /// <summary>Unscaled time until which a bump keeps the Oops face; 0 when no bump is pending.</summary>
+        float oopsUntil;
 
         PlayHud hud;
         RectTransform boardArea;
@@ -117,6 +123,8 @@ namespace Cameli.Game
             boardInput.Columns = Stage.Width;
             boardInput.Rows = Stage.Height;
             hud.Refresh(session);
+            oopsUntil = 0f;
+            RefreshFace();
             RefreshGuides();
         }
 
@@ -137,6 +145,8 @@ namespace Cameli.Game
             bufferedMoves.Clear();
             clearView.Hide();
             session = null;
+            oopsUntil = 0f;
+            RefreshFace();
             gameObject.SetActive(false);
         }
 
@@ -175,6 +185,12 @@ namespace Cameli.Game
         void Update()
         {
             hud.Tick(Time.unscaledDeltaTime);
+            // A bump's Oops wears off; not mid-move, so a clearing move's Happy face still waits for its landing.
+            if (oopsUntil > 0f && Time.unscaledTime >= oopsUntil && !board.IsAnimating)
+            {
+                oopsUntil = 0f;
+                RefreshFace();
+            }
             if (!Interactive) return;
 
             Keyboard keyboard = Keyboard.current;
@@ -229,6 +245,7 @@ namespace Cameli.Game
                     Sfx.Play(SfxKind.Blocked);
                     GateDefinition gate = Stage.Gates[Stage.CellAt(gateCell).Gate];
                     hud.ShowMessage($"이 문은 {Words.Recipe(gate.Recipe)} 색일 때만 지나갈 수 있어요.");
+                    Startle();
                     break;
                 }
 
@@ -236,20 +253,46 @@ namespace Cameli.Game
                     bufferedMoves.Clear();
                     board.Shake(Neighbor(from, direction));
                     Sfx.Play(SfxKind.Blocked);
+                    Startle();
                     break;
 
                 case MoveOutcome.BlockedByEdge:
                     bufferedMoves.Clear();
                     board.Shake(-1);
                     Sfx.Play(SfxKind.Blocked);
+                    Startle();
                     break;
             }
+        }
+
+        /// <summary>A bump: the Oops face for <see cref="OopsSeconds"/>.</summary>
+        void Startle()
+        {
+            oopsUntil = Time.unscaledTime + OopsSeconds;
+            RefreshFace();
+        }
+
+        /// <summary>
+        /// Puts the same face on the board token and the goal card: Happy once the clearing move has landed (this is
+        /// only called when no move is sliding), Oops while the mix is overfilled or right after a bump, else Normal.
+        /// </summary>
+        void RefreshFace()
+        {
+            CameliFace face = CameliFace.Normal;
+            if (session != null)
+            {
+                if (session.IsCleared) face = CameliFace.Happy;
+                else if (Rules.IsOverfilled(Stage, session.State) || Time.unscaledTime < oopsUntil) face = CameliFace.Oops;
+            }
+            board.SetFace(face);
+            hud.SetFace(face);
         }
 
         void OnMoveLanded(MoveOutcome outcome)
         {
             board.Refresh(session.State);
             hud.Refresh(session);
+            RefreshFace();
             if (outcome == MoveOutcome.Ate || outcome == MoveOutcome.Cleared)
             {
                 Sfx.Play(SfxKind.Eat);
@@ -368,6 +411,8 @@ namespace Cameli.Game
             board.SnapToken(session.State.Position);
             hud.Refresh(session);
             hud.ShowMessage("");
+            oopsUntil = 0f;
+            RefreshFace();
             RefreshGuides();
         }
 

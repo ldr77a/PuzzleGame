@@ -103,6 +103,9 @@ namespace Cameli.Game
             LayoutChips();
         }
 
+        /// <summary>Cameli's expression on the card; <see cref="PlayScreen"/> keeps it the same as the board token's.</summary>
+        public void SetFace(CameliFace face) => cameli.SetFace(face);
+
         /// <summary>One chip per color, in this order; the chip area hides when there are none.</summary>
         void SetChips(IReadOnlyList<int> colors)
         {

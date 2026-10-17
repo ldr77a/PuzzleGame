@@ -69,6 +69,7 @@ Phase 1 (the Unity prototype) is done on a separate git branch.
     - `Widgets` holds the shared card/button/star helpers; `Sway`, `Blink`, `SlideIn` are tiny unscaled-time animators.
     - `BoardView` draws wall cells as a wooden fence on floor (`SpriteFactory.Fence*`) and `JoinFences` bridges neighboring walls; title and garden add `Widgets.Leaf` decoration at the edges, never the play screen (spec §15).
     - `BoardView.FigureToken` draws the token as `CameliFigure`; `ShowGlow` and `ShowSwipe` draw the tutorial guides and `ShowBlink(color)` blinks the hinted color's cells until the next move. `CameliGame` leaves them off.
+    - `CameliFigure.SetFace(CameliFace)` shows Normal, Happy (cleared), or Oops (overfilled, or 0.6 s after a bump), set by `PlayScreen` on the board token and the goal card alike; the figure token hops on each move (squash and stretch scaled by `CameliFigure.SquashStretch`, 0 for rigid art such as pixel art) and every figure's tail sways.
     - `HintStore` keeps today's free hints (`cameli.hints` + `cameli.hints.day`, 3 per local day, no carry-over). With none left, the hint button offers `GrantPopup`, and the "ad" uses a hint on the spot. `Progress.ResetAll` (next tester) clears it too.
     - Jua lacks "·", arrows, and similar symbols: keep UI strings to Hangul, Latin, digits, and ★, and draw icons with `SpriteFactory`.
 - **Stage files** live in `Assets/Resources/CameliStages/<folder>/stage_NN.json`, matching `StageFile` in `Core/Stage.cs`:

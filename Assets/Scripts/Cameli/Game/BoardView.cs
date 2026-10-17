@@ -22,6 +22,18 @@ namespace Cameli.Game
         const float ShakeSeconds = 0.25f;
         const float ShakeDistance = 14f;
 
+        // Cameli's hop on each move (figure token only). Squash and stretch scale with CameliFigure.SquashStretch.
+
+        /// <summary>How high Cameli rises mid-move, as a fraction of a cell's height; 0 slides flat.</summary>
+        const float HopHeight = 0.22f;
+
+        /// <summary>Stretch at the top of the hop: this much taller and narrower.</summary>
+        const float HopStretchY = 0.10f, HopStretchX = 0.07f;
+
+        /// <summary>The squash after landing: shorter and wider for a moment. Not part of <see cref="IsAnimating"/>.</summary>
+        const float LandSeconds = 0.09f;
+        const float LandSquashY = 0.13f, LandSquashX = 0.10f;
+
         /// <summary>The glow frame sticks out this fraction of a cell on every side.</summary>
         const float GlowGrow = 0.08f;
         const float GlowPulseSpeed = 4f;
@@ -45,9 +57,11 @@ namespace Cameli.Game
         Vector2 swipeFrom, swipeTo;
         float swipeClock;
         Coroutine moveRoutine;
+        Coroutine landRoutine;
         int moveTarget;
         Action moveFinished;
 
+        /// <summary>A move is sliding. The landing squash after it doesn't count, so queued moves follow at once.</summary>
         public bool IsAnimating => moveRoutine != null;
 
         /// <summary>Draws the token as <see cref="CameliFigure"/> instead of the Phase 1 disc. Takes effect on the next <see cref="Build"/>.</summary>
@@ -114,8 +128,10 @@ namespace Cameli.Game
             else tokenFill.color = state.Drops.IsEmpty ? Color.white : (Color)Theme.ToColor(ColorMath.Mix(state.Drops));
         }
 
+        /// <summary>Puts the token on a cell at rest, cutting off a landing squash.</summary>
         public void SnapToken(int index)
         {
+            StopLanding();
             Place(token, index, Inset);
             token.SetAsLastSibling();
             if (guides != null) guides.SetAsLastSibling();
@@ -123,6 +139,9 @@ namespace Cameli.Game
 
         /// <summary>Turns the Cameli token toward a left or right move (also a blocked one); no effect on the disc.</summary>
         public void FaceToken(Direction direction) => figure?.Face(direction);
+
+        /// <summary>Sets the Cameli token's expression; no effect on the disc.</summary>
+        public void SetFace(CameliFace face) => figure?.SetFace(face);
 
         /// <summary>Slides the token to another cell, then calls <paramref name="finished"/>.</summary>
         public void AnimateMove(int from, int to, Action finished)
@@ -135,12 +154,16 @@ namespace Cameli.Game
             moveRoutine = StartCoroutine(Slide(from, to));
         }
 
-        /// <summary>Jumps a running move to its end so a restart or hint never sees a half-finished move.</summary>
+        /// <summary>
+        /// Jumps a running move to its end so a restart or hint never sees a half-finished move. Also cuts off a
+        /// landing squash, so the token is always at rest afterwards.
+        /// </summary>
         public void CompleteAnimation()
         {
+            StopLanding();
             if (moveRoutine == null) return;
             StopCoroutine(moveRoutine);
-            FinishMove();
+            FinishMove(false);
         }
 
         /// <summary>Wiggles a cell (blocked move) or, with -1, the token (edge of the board).</summary>
@@ -154,23 +177,56 @@ namespace Cameli.Game
         {
             (Vector2 fromMin, Vector2 fromMax) = Anchors(from, Inset);
             (Vector2 toMin, Vector2 toMax) = Anchors(to, Inset);
+            float hop = ((RectTransform)transform).rect.height * CellHeight * HopHeight;
             for (float t = 0f; t < MoveSeconds; t += Time.unscaledDeltaTime)
             {
                 float k = 1f - (1f - t / MoveSeconds) * (1f - t / MoveSeconds);
                 token.anchorMin = Vector2.LerpUnclamped(fromMin, toMin, k);
                 token.anchorMax = Vector2.LerpUnclamped(fromMax, toMax, k);
+                if (figure != null)
+                {
+                    // Up and down once over the move, stretched in the air.
+                    float arc = Mathf.Sin(Mathf.PI * t / MoveSeconds);
+                    float stretch = CameliFigure.SquashStretch * arc;
+                    figure.Pose(hop * arc, 1f - HopStretchX * stretch, 1f + HopStretchY * stretch);
+                }
                 yield return null;
             }
-            FinishMove();
+            FinishMove(true);
         }
 
-        void FinishMove()
+        /// <summary>Lands the token on its target at rest, starts the landing squash when it played out, then reports the move done.</summary>
+        void FinishMove(bool squash)
         {
             moveRoutine = null;
             SnapToken(moveTarget);
+            if (squash && figure != null && CameliFigure.SquashStretch > 0f) landRoutine = StartCoroutine(Land());
             Action done = moveFinished;
             moveFinished = null;
             done?.Invoke();
+        }
+
+        IEnumerator Land()
+        {
+            for (float u = 0f; u < LandSeconds; u += Time.unscaledDeltaTime)
+            {
+                float squash = CameliFigure.SquashStretch * Mathf.Sin(Mathf.PI * u / LandSeconds);
+                figure.Pose(0f, 1f + LandSquashX * squash, 1f - LandSquashY * squash);
+                yield return null;
+            }
+            landRoutine = null;
+            figure.Rest();
+        }
+
+        /// <summary>Ends a landing squash early (or one Unity stopped with the object) and puts the figure at rest.</summary>
+        void StopLanding()
+        {
+            if (landRoutine != null)
+            {
+                StopCoroutine(landRoutine);
+                landRoutine = null;
+            }
+            figure?.Rest();
         }
 
         IEnumerator Wiggle(RectTransform target)
