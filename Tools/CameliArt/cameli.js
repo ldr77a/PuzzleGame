@@ -4,8 +4,11 @@
 // Units: a 100 x 100 square, y down, facing right. The drawing is made at a larger size and then scaled by FIT into the
 // square (the big tail needs the room); outlines are widened by 1 / FIT so they stay OUTLINE wide in the square.
 const CameliArt = (() => {
-  const INK = "#1E2B25";      // Theme.Ink
-  const OUTLINE = 4.5;        // outline width in the square
+  // Lines in a dark leaf green, lighter and thinner than the UI's Theme.Ink (decided 2026-10-18: the old near-black
+  // 4.5 outline looked too heavy).
+  const INK = "#2B4A33";
+  const OUTLINE = 3.15;       // outline width in the square
+  const FACE = { ridge: 1.54, mouth: 2.24, eye: 2.24, happy: 2.38 };   // face line widths in the square
   const FIT = { x: 10, y: 0.5, s: 0.88 };
 
   // Body, casque and the two half-moon feet share one silhouette (one outline around all of them).
@@ -56,14 +59,14 @@ const CameliArt = (() => {
   const line = OUTLINE / FIT.s;
 
   function face(kind) {
-    let s = `<path d="${RIDGE}" fill="none" stroke="${INK}" stroke-width="${2.2 / FIT.s}" stroke-linecap="round"/>`;
-    s += `<path d="${MOUTH}" fill="none" stroke="${INK}" stroke-width="${3.2 / FIT.s}" stroke-linecap="round"/>`;
+    let s = `<path d="${RIDGE}" fill="none" stroke="${INK}" stroke-width="${FACE.ridge / FIT.s}" stroke-linecap="round"/>`;
+    s += `<path d="${MOUTH}" fill="none" stroke="${INK}" stroke-width="${FACE.mouth / FIT.s}" stroke-linecap="round"/>`;
     const e = EYE;
     if (kind === "happy") {
-      s += `<path d="M${e.x - e.r * 0.85} ${e.y + 1.5} Q ${e.x} ${e.y - e.r} ${e.x + e.r * 0.85} ${e.y + 1.5}" fill="none" stroke="${INK}" stroke-width="${3.4 / FIT.s}" stroke-linecap="round"/>`;
+      s += `<path d="M${e.x - e.r * 0.85} ${e.y + 1.5} Q ${e.x} ${e.y - e.r} ${e.x + e.r * 0.85} ${e.y + 1.5}" fill="none" stroke="${INK}" stroke-width="${FACE.happy / FIT.s}" stroke-linecap="round"/>`;
     } else {
       const oops = kind === "oops";
-      s += `<circle cx="${e.x}" cy="${e.y}" r="${oops ? e.r + 1.5 : e.r}" fill="#FFFFFF" stroke="${INK}" stroke-width="${3.2 / FIT.s}"/>`;
+      s += `<circle cx="${e.x}" cy="${e.y}" r="${oops ? e.r + 1.5 : e.r}" fill="#FFFFFF" stroke="${INK}" stroke-width="${FACE.eye / FIT.s}"/>`;
       s += `<circle cx="${oops ? e.x : e.x + e.r * 0.3}" cy="${e.y}" r="${oops ? e.r * 0.22 : e.r * 0.48}" fill="${INK}"/>`;
     }
     return s;

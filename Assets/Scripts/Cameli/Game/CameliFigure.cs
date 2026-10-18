@@ -33,7 +33,7 @@ namespace Cameli.Game
         static readonly Vector2 TailJoint = new Vector2(0.324f, 0.489f);
 
         /// <summary>Where Cameli stands in the figure square: between the feet, at their bottom. <see cref="Pose"/> scales around it. Facing left mirrors x.</summary>
-        static readonly Vector2 Feet = new Vector2(0.602f, 0.229f);
+        static readonly Vector2 Feet = new Vector2(0.602f, 0.242f);
 
         const string ArtFolder = "CameliArt/";
         static readonly Dictionary<string, Sprite> sprites = new Dictionary<string, Sprite>();
