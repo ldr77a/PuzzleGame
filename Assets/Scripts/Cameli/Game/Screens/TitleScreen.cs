@@ -57,9 +57,10 @@ namespace Cameli.Game
             Decor(layer, 0.88f, 0.13f, 220f, 1, 10f, 1.0f);
             Decor(layer, 0.30f, 0.06f, 110f, 3, -8f, 1.8f);
 
-            // The column: Cameli, the two-line logo, the subtitle, the prompt. With the drawing's ink about 280 tall
-            // and the logo about 410, they keep 25 or more apart down to a 1850-unit safe area.
-            RectTransform cameliBox = Ui.Box(Ui.NewRect("Cameli Box", layer), new Vector2(0.5f, 0.655f), Vector2.zero, new Vector2(460f, 460f));
+            // The column: Cameli, the two-line logo, the subtitle, the prompt. Cameli's ink reaches 140 below its box's
+            // center (the tail) and the logo about 205 above its own, so the gap is a quarter of the safe area's height
+            // less 345: about 135 on a 1920-unit safe area (moved up from 0.655 on 2026-10-18; it looked cramped).
+            RectTransform cameliBox = Ui.Box(Ui.NewRect("Cameli Box", layer), new Vector2(0.5f, 0.70f), Vector2.zero, new Vector2(460f, 460f));
             cameli = new CameliFigure(cameliBox);
 
             Logo(layer, new Vector2(0.5f, 0.45f));
