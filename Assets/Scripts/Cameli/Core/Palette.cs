@@ -1,6 +1,10 @@
 namespace Cameli.Core
 {
-    /// <summary>The game's fixed 7-color palette. Stage files refer to colors by letter.</summary>
+    /// <summary>
+    /// The game's fixed 7-color palette. Stage files refer to colors by letter. Softened on 2026-10-18 (Phase 2 spec
+    /// §21): CIELAB chroma 85% and lightness +6 of the first palette, which took the neon edge off while keeping the
+    /// colors apart (a real pastel made too many recipes look alike).
+    /// </summary>
     public static class Palette
     {
         public const int Count = 7;
@@ -9,13 +13,13 @@ namespace Cameli.Core
 
         static readonly Rgb[] colors =
         {
-            new Rgb(232, 48, 48),   // R 빨강
-            new Rgb(247, 150, 70),  // O 주황
-            new Rgb(255, 246, 75),  // Y 노랑
-            new Rgb(171, 213, 84),  // G 초록
-            new Rgb(71, 163, 255),  // B 파랑
-            new Rgb(35, 20, 234),   // N 남색
-            new Rgb(174, 81, 199),  // P 보라
+            new Rgb(238, 85, 73),   // R 빨강
+            new Rgb(255, 170, 102), // O 주황
+            new Rgb(255, 254, 114), // Y 노랑
+            new Rgb(194, 228, 119), // G 초록
+            new Rgb(115, 178, 255), // B 파랑
+            new Rgb(84, 51, 226),   // N 남색
+            new Rgb(184, 105, 204), // P 보라
         };
 
         static readonly string[] names = { "빨강", "주황", "노랑", "초록", "파랑", "남색", "보라" };

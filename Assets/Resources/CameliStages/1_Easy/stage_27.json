@@ -3,11 +3,11 @@
   "title": "꽃향기",
   "hint": "",
   "rows": [
-    "N R N #",
-    "P S P P",
-    "R P N R",
-    "# N P #"
+    "R G N #",
+    "N S R G",
+    "R R R N",
+    "# N G #"
   ],
-  "target": "RRRNP",
+  "target": "RRGGG",
   "optimalMoves": 7
 }

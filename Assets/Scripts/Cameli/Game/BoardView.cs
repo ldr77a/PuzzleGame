@@ -16,6 +16,12 @@ namespace Cameli.Game
     public sealed class BoardView : MonoBehaviour
     {
         const float GapFraction = 0.025f;
+
+        /// <summary>
+        /// How far a cell's darker edge shows below it, as a fraction of the cell's height, so the tiles look raised
+        /// (2026-10-18). Less than the gap on boards from 3×3 up, so it never reaches the cell below.
+        /// </summary>
+        const float LipDepth = 0.06f;
         const float TokenInset = 0.14f;
         const float FigureInset = 0.03f;
         const float MoveSeconds = 0.12f;
@@ -44,7 +50,21 @@ namespace Cameli.Game
         const float FingerSize = 0.36f;
         const float SwipeCycleSeconds = 1.8f;
 
-        readonly List<Image> cells = new List<Image>();
+        /// <summary>One cell: <see cref="Root"/> is placed, scaled and shaken; the face sits on the lip, decorations on the face.</summary>
+        sealed class CellView
+        {
+            public RectTransform Root;
+            public Image Lip;
+            public Image Face;
+
+            public void Paint(Color face, Color lip)
+            {
+                Face.color = face;
+                Lip.color = lip;
+            }
+        }
+
+        readonly List<CellView> cells = new List<CellView>();
         StageDefinition stage;
         RectTransform token;
         Image tokenFill;
@@ -81,9 +101,16 @@ namespace Cameli.Game
 
             for (int i = 0; i < stage.CellCount; i++)
             {
-                Image cell = Ui.NewImage($"Cell {i}", transform, SpriteFactory.RoundedRect, Theme.Floor);
-                Place(cell.rectTransform, i, 0f);
-                AddDecoration(cell.transform, stage.CellAt(i));
+                var cell = new CellView { Root = Ui.NewRect($"Cell {i}", transform) };
+                Place(cell.Root, i, 0f);
+                cell.Lip = Ui.NewImage("Lip", cell.Root, SpriteFactory.RoundedRect, Theme.FloorLip);
+                cell.Lip.rectTransform.anchorMin = new Vector2(0f, -LipDepth);
+                cell.Lip.rectTransform.anchorMax = new Vector2(1f, 1f - LipDepth);
+                cell.Lip.rectTransform.offsetMin = Vector2.zero;
+                cell.Lip.rectTransform.offsetMax = Vector2.zero;
+                cell.Face = Ui.NewImage("Face", cell.Root, SpriteFactory.RoundedRect, Theme.Floor);
+                Ui.Stretch(cell.Face.rectTransform);
+                AddDecoration(cell.Face.transform, stage.CellAt(i));
                 cells.Add(cell);
             }
             JoinFences();
@@ -119,11 +146,17 @@ namespace Cameli.Game
             shown = state;
             for (int i = 0; i < cells.Count; i++)
             {
-                cells[i].rectTransform.localScale = Vector3.one;
+                cells[i].Root.localScale = Vector3.one;
                 // Everything but an uneaten color tile is plain floor; a wall's fence stands on it (AddDecoration).
-                cells[i].color = Rules.VisibleKind(stage, state, i) == CellKind.Color
-                    ? (Color)Theme.ToColor(Palette.Color(stage.CellAt(i).Color))
-                    : Theme.Floor;
+                if (Rules.VisibleKind(stage, state, i) == CellKind.Color)
+                {
+                    Color tile = Theme.ToColor(Palette.Color(stage.CellAt(i).Color));
+                    cells[i].Paint(tile, Theme.Lip(tile));
+                }
+                else
+                {
+                    cells[i].Paint(Theme.Floor, Theme.FloorLip);
+                }
             }
             if (figure != null) figure.SetColor(CameliFigure.ColorOf(state.Drops));
             else tokenFill.color = state.Drops.IsEmpty ? Color.white : (Color)Theme.ToColor(ColorMath.Mix(state.Drops));
@@ -170,7 +203,7 @@ namespace Cameli.Game
         /// <summary>Wiggles a cell (blocked move) or, with -1, the token (edge of the board).</summary>
         public void Shake(int cellIndex)
         {
-            RectTransform target = cellIndex >= 0 && cellIndex < cells.Count ? cells[cellIndex].rectTransform : token;
+            RectTransform target = cellIndex >= 0 && cellIndex < cells.Count ? cells[cellIndex].Root : token;
             StartCoroutine(Wiggle(target));
         }
 
@@ -332,8 +365,8 @@ namespace Cameli.Game
             for (int i = 0; i < cells.Count; i++)
             {
                 if (!IsBlinking(i, blinkColor)) continue;
-                cells[i].color = flash;
-                cells[i].rectTransform.localScale = scale;
+                cells[i].Paint(flash, Theme.Lip(flash));
+                cells[i].Root.localScale = scale;
             }
         }
 

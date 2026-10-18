@@ -3,11 +3,11 @@
   "title": "담장 너머",
   "hint": "",
   "rows": [
-    "G P G #",
+    "P R G #",
     "G S G P",
-    "P R R G",
-    "# R # G"
+    "R R P R",
+    "# P # G"
   ],
-  "target": "RGPPP",
+  "target": "GGPPP",
   "optimalMoves": 8
 }

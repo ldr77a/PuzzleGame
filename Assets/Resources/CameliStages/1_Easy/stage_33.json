@@ -3,11 +3,11 @@
   "title": "벌집",
   "hint": "",
   "rows": [
-    "O R Y #",
-    "O S O R",
-    "Y R Y #",
-    "R R O #"
+    "Y N N #",
+    "B S N Y",
+    "N Y Y #",
+    "B B N #"
   ],
-  "target": "OOYYY",
+  "target": "YYYBB",
   "optimalMoves": 8
 }

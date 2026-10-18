@@ -3,11 +3,11 @@
   "title": "정원사의 길",
   "hint": "",
   "rows": [
-    "Y Y P Y",
-    "# S Y B",
-    "P B Y B",
-    "# Y # #"
+    "Y B B #",
+    "P S P #",
+    "Y P P #",
+    "P Y # B"
   ],
-  "target": "YBBPP",
+  "target": "YYYBP",
   "optimalMoves": 8
 }

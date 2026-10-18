@@ -9,11 +9,16 @@ namespace Cameli.Game
     /// </summary>
     public static class Theme
     {
-        public static readonly Color Background = Hex(0xF1F3F0);
-        public static readonly Color Board = Hex(0xD8DDD9);
+        // The garden pastel around the tiles (2026-10-18, Phase 2 spec §21): cream background and floor, a pale sage
+        // board, each at least ΔE 40 from every tile color.
+        public static readonly Color Background = Hex(0xF4F1E4);
+        public static readonly Color Board = Hex(0xCFDCC4);
 
         /// <summary>Empty floor, the start cell, and gate cells.</summary>
-        public static readonly Color Floor = Hex(0xE9ECE9);
+        public static readonly Color Floor = Hex(0xFBF8EE);
+
+        /// <summary>The edge under a floor cell, like <see cref="Lip"/> for a tile but a little softer.</summary>
+        public static readonly Color FloorLip = Hex(0xDDDAD1);
 
         public static readonly Color Ink = Hex(0x1E2B25);
         public static readonly Color Muted = Hex(0x66736C);
@@ -64,6 +69,9 @@ namespace Cameli.Game
 
         /// <summary>Mixes a color toward white; used for the lighter inner petals.</summary>
         public static Color Lighten(Color color, float amount) => Color.Lerp(color, Color.white, amount);
+
+        /// <summary>The darker edge under a raised tile of <paramref name="color"/> (2026-10-18, Phase 2 spec §21).</summary>
+        public static Color Lip(Color color) => new Color(color.r * 0.8f, color.g * 0.8f, color.b * 0.8f, color.a);
 
         static Color Hex(int rgb) => new Color32((byte)(rgb >> 16), (byte)(rgb >> 8), (byte)rgb, 255);
     }

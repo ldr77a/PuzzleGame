@@ -3,10 +3,10 @@
   "title": "네 갈래",
   "hint": "",
   "rows": [
-    "# Y R",
-    "O S Y",
-    "R O #"
+    "# B R",
+    "Y S Y",
+    "R B #"
   ],
-  "target": "OOYY",
+  "target": "YYBB",
   "optimalMoves": 7
 }

@@ -3,11 +3,11 @@
   "title": "꽃 시계",
   "hint": "",
   "rows": [
-    "# P O #",
-    "G S G P",
-    "P P P P",
-    "# O P P"
+    "G P G P",
+    "B S P B",
+    "B P G #",
+    "B # B #"
   ],
-  "target": "OOGGP",
+  "target": "GGGBP",
   "optimalMoves": 8
 }

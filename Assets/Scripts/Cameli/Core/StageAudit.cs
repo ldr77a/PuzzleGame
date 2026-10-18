@@ -65,6 +65,9 @@ namespace Cameli.Core
 
         /// <summary>The tutorial path doesn't clear exactly on its last step (<see cref="PathCheck"/>).</summary>
         PathBroken = 1 << 8,
+
+        /// <summary>A tutorial or Easy board has two tile colors closer than <see cref="StageAudit.EasyTileThreshold"/>.</summary>
+        TilesTooSimilar = 1 << 9,
     }
 
     /// <summary>Everything <see cref="StageAudit.Audit"/> found out about one stage.</summary>
@@ -72,6 +75,9 @@ namespace Cameli.Core
     {
         public int Id;
         public string Title;
+
+        /// <summary>Index in <see cref="StageSections.All"/> of the stage's folder, -1 when unknown; sets the thresholds.</summary>
+        public int Section = -1;
         public int Width;
         public int Height;
 
@@ -128,9 +134,13 @@ namespace Cameli.Core
         /// <summary>Steps in the tutorial path; 0 without one.</summary>
         public int PathLength;
 
+        /// <summary>The ambiguity threshold for this stage's section (<see cref="StageAudit.AmbiguityThresholdFor"/>).</summary>
+        public double AmbiguityLimit => StageAudit.AmbiguityThresholdFor(Section);
+
         public bool OptimalMismatch => Solvable && Optimal != StoredOptimal;
-        public bool TargetAmbiguous => TargetDeltaE < StageAudit.AmbiguityThreshold;
-        public bool GateAmbiguous => GateDeltaE < StageAudit.AmbiguityThreshold;
+        public bool TargetAmbiguous => TargetDeltaE < AmbiguityLimit;
+        public bool GateAmbiguous => GateDeltaE < AmbiguityLimit;
+        public bool TilesTooSimilar => StageAudit.IsEasy(Section) && TileDeltaE < StageAudit.EasyTileThreshold;
         public bool PathBroken => PathCheck != PathCheck.None && PathCheck != PathCheck.ClearsAtEnd;
 
         public StageProblems Problems
@@ -147,6 +157,7 @@ namespace Cameli.Core
                 if (TargetAmbiguous) problems |= StageProblems.TargetAmbiguous;
                 if (GateAmbiguous) problems |= StageProblems.GateAmbiguous;
                 if (PathBroken) problems |= StageProblems.PathBroken;
+                if (TilesTooSimilar) problems |= StageProblems.TilesTooSimilar;
                 return problems;
             }
         }
@@ -154,8 +165,9 @@ namespace Cameli.Core
 
     /// <summary>
     /// The stage checks shared by <c>lab.sh check</c> (LevelLab) and the Unity menu "Cameli/스테이지 검증": solvable,
-    /// stored vs actual optimalMoves, gates used as doors and passed with their exact recipe, and the ambiguity
-    /// filter, the tutorial path, plus informational numbers. Tooling only; the solver searches can take a while on big boards.
+    /// stored vs actual optimalMoves, gates used as doors and passed with their exact recipe, the ambiguity filter
+    /// (stricter for tutorial and Easy, which also may not use too-similar tile colors), the tutorial path, plus
+    /// informational numbers. Tooling only; the solver searches can take a while on big boards.
     /// </summary>
     public static class StageAudit
     {
@@ -166,21 +178,44 @@ namespace Cameli.Core
         public const double AmbiguityThreshold = 10;
 
         /// <summary>
+        /// The ambiguity threshold for tutorial and Easy stages (2026-10-18, Phase 2 spec §21): the first stages teach
+        /// mixing, so the target has to read clearly.
+        /// </summary>
+        public const double EasyAmbiguityThreshold = 15;
+
+        /// <summary>
+        /// Tutorial and Easy boards keep every two tile colors at least this far apart (CIELAB ΔE76). With the palette
+        /// of 2026-10-18 it rules out red with orange (ΔE 40) and yellow with green (23); those pairs are left for
+        /// Medium and Hard.
+        /// </summary>
+        public const double EasyTileThreshold = 45;
+
+        /// <summary>Tutorial and Easy, the sections with the stricter checks.</summary>
+        public static bool IsEasy(int section) => section == StageSections.Tutorial || section == StageSections.Easy;
+
+        /// <summary>The ambiguity threshold for stages in this section (-1, unknown, gets the general one).</summary>
+        public static double AmbiguityThresholdFor(int section) => IsEasy(section) ? EasyAmbiguityThreshold : AmbiguityThreshold;
+
+        /// <summary>
         /// Extra moves over the optimum that the near-clear count and the random walk allow: a slightly sloppy clear.
         /// (It was the two-star window when stars came from moves.)
         /// </summary>
         public const int NearSlack = 2;
 
-        /// <summary>Runs every check on <paramref name="file"/>.</summary>
+        /// <summary>
+        /// Runs every check on <paramref name="file"/>, with the thresholds of <paramref name="section"/> (its index in
+        /// <see cref="StageSections.All"/>; -1 when the folder isn't known).
+        /// </summary>
         /// <exception cref="StageFormatException">The file is not a valid stage.</exception>
         /// <exception cref="SearchLimitException">The board is too big or complex for the solver's state cap.</exception>
-        public static StageReport Audit(StageFile file)
+        public static StageReport Audit(StageFile file, int section = -1)
         {
             StageDefinition stage = StageDefinition.FromFile(file);
             var report = new StageReport
             {
                 Id = file.id,
                 Title = file.title,
+                Section = section,
                 Width = stage.Width,
                 Height = stage.Height,
                 Colors = ColorLetters(stage),

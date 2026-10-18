@@ -3,9 +3,9 @@
   "title": "꽃봉오리",
   "hint": "",
   "rows": [
-    "R G #",
-    "G S R",
-    "R O O"
+    "O N #",
+    "O S G",
+    "N G N"
   ],
   "target": "OGG",
   "optimalMoves": 5

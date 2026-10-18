@@ -3,11 +3,11 @@
   "title": "꽃 미로",
   "hint": "",
   "rows": [
-    "N N Y N",
-    "N S Y P",
-    "N N N N",
-    "N P # #"
+    "P N Y N",
+    "Y S P Y",
+    "Y N P P",
+    "N Y # #"
   ],
-  "target": "YYNPP",
+  "target": "YYYYP",
   "optimalMoves": 8
 }

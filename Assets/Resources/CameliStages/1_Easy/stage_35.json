@@ -3,11 +3,11 @@
   "title": "햇살 쉼터",
   "hint": "",
   "rows": [
-    "# B O O",
-    "O S O Y",
-    "Y B B O",
+    "# B B R",
+    "R S R Y",
+    "Y B R B",
     "B B # B"
   ],
-  "target": "OYYB",
+  "target": "RYYB",
   "optimalMoves": 6
 }

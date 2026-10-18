@@ -27,6 +27,9 @@ namespace Cameli.Core
         /// <summary>Index in <see cref="All"/> of the tutorial folder, 0_Tutorial.</summary>
         public const int Tutorial = 0;
 
+        /// <summary>Index in <see cref="All"/> of the Easy folder, 1_Easy.</summary>
+        public const int Easy = 1;
+
         public static readonly IReadOnlyList<StageSection> All = new[]
         {
             new StageSection("0_Tutorial", "튜토리얼"),

@@ -3,11 +3,11 @@
   "title": "구불구불",
   "hint": "",
   "rows": [
-    "# O G R",
-    "O S O G",
-    "# R O R",
-    "O G R #"
+    "N O O N",
+    "O S N P",
+    "N P O N",
+    "# P # #"
   ],
-  "target": "ROGGG",
+  "target": "OOOOP",
   "optimalMoves": 8
 }

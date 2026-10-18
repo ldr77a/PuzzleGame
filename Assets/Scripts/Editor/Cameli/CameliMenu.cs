@@ -44,7 +44,11 @@ namespace Cameli.EditorTools
             PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.iOS, ApplicationId);
             ApplyLaunchScreen();
             bool icons = ApplyIcons();
+            // Write ProjectSettings.asset now rather than on the next project save, and leave a line in the log so the
+            // run can be checked without seeing the dialog.
+            EditorUtility.SetDirty(Unsupported.GetSerializedAssetInterfaceSingleton("PlayerSettings"));
             AssetDatabase.SaveAssets();
+            Debug.Log($"Cameli: 모바일 프로젝트 설정 적용 (Unity 로고 {(PlayerSettings.SplashScreen.showUnityLogo ? "켬" : "끔")}, 아이콘 {(icons ? "넣음" : "그림 없음")})");
             EditorUtility.DisplayDialog("Cameli",
                 $"세로 화면 고정, 제품명 \"Cameli Garden\", 임시 번들 ID {ApplicationId}를 적용했어요.\n" +
                 "Unity 로고 화면을 끄고, 켜질 때 바탕을 타이틀과 같은 색으로 했어요.\n" +
@@ -359,7 +363,7 @@ namespace Cameli.EditorTools
             StageReport report;
             try
             {
-                report = StageAudit.Audit(file);
+                report = StageAudit.Audit(file, section);
             }
             catch (StageFormatException e)
             {
@@ -413,6 +417,8 @@ namespace Cameli.EditorTools
                 problems.Add($"게이트 {pair[0]}와 헷갈림 ({pair[1]}, ΔE {report.GateDeltaE:F1})");
             }
             if ((flags & StageProblems.PathBroken) != 0) problems.Add(PathProblem(report));
+            if ((flags & StageProblems.TilesTooSimilar) != 0)
+                problems.Add($"비슷한 칸 색이 같이 있어요 ({report.Colors}, ΔE {report.TileDeltaE:F1}; 튜토리얼과 Easy는 {StageAudit.EasyTileThreshold} 이상)");
 
             string gate = report.GateUse switch
             {
@@ -424,7 +430,7 @@ namespace Cameli.EditorTools
             if (report.GateUse == GateUse.Door && report.GateAmbiguous) gate += "!";
             string line = $"{label}  {report.Width}x{report.Height} {report.Colors} 목표 {report.Target}  {optimal}" +
                 $"  목표ΔE {report.TargetDeltaE:F1}{(report.TargetAmbiguous ? "!" : "")} ({report.TargetNearest}){gate}" +
-                $"  타일ΔE {report.TileDeltaE:F1}  무작위 {report.WalkClear * 100:F2}%  풀이 {report.OptimalSets}가지" +
+                $"  타일ΔE {report.TileDeltaE:F1}{(report.TilesTooSimilar ? "!" : "")}  무작위 {report.WalkClear * 100:F2}%  풀이 {report.OptimalSets}가지" +
                 (problems.Count == 0 ? "  통과" : $"  문제: {string.Join(", ", problems)}");
             if (problems.Count == 0) Debug.Log(line);
             else Debug.LogWarning(line);

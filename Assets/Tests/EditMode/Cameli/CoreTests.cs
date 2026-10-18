@@ -54,7 +54,7 @@ namespace Cameli.Tests
         [Test]
         public void RedPlusYellowIsOrange()
         {
-            Assert.AreEqual(new Rgb(243, 109, 60), ColorMath.Mix(DropCounts.Parse("RY")));
+            Assert.AreEqual(new Rgb(246, 147, 91), ColorMath.Mix(DropCounts.Parse("RY")));
         }
 
         [Test]
@@ -703,9 +703,9 @@ namespace Cameli.Tests
             Assert.AreEqual(GateUse.Door, report.GateUse);
             Assert.IsTrue(report.GatesExact);
             Assert.AreEqual("OBP", report.Colors);
-            Assert.AreEqual("BB", report.TargetNearest);
-            Assert.AreEqual(28.7, report.TargetDeltaE, 0.05);
-            Assert.AreEqual("OP~OO", report.GateNearest);
+            Assert.AreEqual("PP", report.TargetNearest);
+            Assert.AreEqual(24.5, report.TargetDeltaE, 0.05);
+            Assert.AreEqual("OP~OB", report.GateNearest);
         }
 
         [Test]
@@ -720,14 +720,37 @@ namespace Cameli.Tests
         [Test]
         public void AmbiguousTargetIsReported()
         {
-            // Navy 2 + blue 1 mixes about ΔE 6 from navy 3, too close to tell apart.
+            // Yellow 1 + green 2 mixes about ΔE 7 from green 3, too close to tell apart.
             StageReport report = StageAudit.Audit(new StageFile
             {
-                id = 1, rows = new[] { "N B N", "B S B", "N B N" }, target = "NNB", optimalMoves = 4,
+                id = 1, rows = new[] { "G Y G", "Y S Y", "G Y G" }, target = "YGG", optimalMoves = 4,
             });
             Assert.AreEqual(StageProblems.TargetAmbiguous, report.Problems);
-            Assert.AreEqual("NNN", report.TargetNearest);
+            Assert.AreEqual("GGG", report.TargetNearest);
             Assert.Less(report.TargetDeltaE, StageAudit.AmbiguityThreshold);
+        }
+
+        [Test]
+        public void EasyStagesNeedTheStricterAmbiguityThreshold()
+        {
+            // Blue 1 + navy 2 is about ΔE 13 from navy 3: enough for Medium, too close for the first stages.
+            var file = new StageFile { id = 1, rows = new[] { "N B N", "B S B", "N B N" }, target = "BNN", optimalMoves = 4 };
+            Assert.AreEqual(StageProblems.None, StageAudit.Audit(file, section: 2).Problems);
+            StageReport easy = StageAudit.Audit(file, StageSections.Easy);
+            Assert.AreEqual(StageProblems.TargetAmbiguous, easy.Problems);
+            Assert.AreEqual(StageAudit.EasyAmbiguityThreshold, easy.AmbiguityLimit);
+            Assert.AreEqual(StageProblems.TargetAmbiguous, StageAudit.Audit(file, StageSections.Tutorial).Problems);
+        }
+
+        [Test]
+        public void SimilarTileColorsFailOnlyInTheFirstStages()
+        {
+            // Red and orange (about ΔE 40) on one board; the blue target itself reads clearly.
+            var file = new StageFile { id = 1, rows = new[] { "R B R", "O S B", "R O R" }, target = "BB", optimalMoves = 3 };
+            Assert.AreEqual(StageProblems.None, StageAudit.Audit(file, section: 2).Problems);
+            StageReport easy = StageAudit.Audit(file, StageSections.Easy);
+            Assert.AreEqual(StageProblems.TilesTooSimilar, easy.Problems);
+            Assert.Less(easy.TileDeltaE, StageAudit.EasyTileThreshold);
         }
 
         [Test]

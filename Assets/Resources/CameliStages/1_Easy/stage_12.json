@@ -3,10 +3,10 @@
   "title": "작은 화분",
   "hint": "",
   "rows": [
-    "P G O",
-    "P S P",
-    "O # #"
+    "P O O",
+    "O S P",
+    "B # #"
   ],
-  "target": "OOGP",
+  "target": "OOOB",
   "optimalMoves": 6
 }

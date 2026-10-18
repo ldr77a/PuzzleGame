@@ -3,11 +3,11 @@
   "title": "동백 언덕",
   "hint": "",
   "rows": [
-    "Y P R #",
-    "R S Y R",
-    "P R P #",
-    "# Y P #"
+    "P P R #",
+    "R S Y Y",
+    "R Y R #",
+    "R P # #"
   ],
-  "target": "RYYYP",
+  "target": "YYPPP",
   "optimalMoves": 8
 }

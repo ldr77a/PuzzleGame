@@ -3,11 +3,11 @@
   "title": "오솔길",
   "hint": "",
   "rows": [
-    "P Y P Y",
-    "O S Y #",
-    "P Y P O",
-    "P # Y Y"
+    "N R N Y",
+    "Y S Y #",
+    "N Y N Y",
+    "R # R N"
   ],
-  "target": "OYYY",
+  "target": "RYYY",
   "optimalMoves": 7
 }

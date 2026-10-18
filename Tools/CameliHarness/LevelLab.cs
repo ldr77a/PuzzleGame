@@ -41,7 +41,8 @@ static class LevelLab
         int problems = 0;
         var ids = new List<(int id, int section)>();
         int unread = 0;
-        Console.WriteLine($"ambiguity: nearest other same-drop recipe from board colors, CIELAB ΔE76; FAIL below {StageAudit.AmbiguityThreshold}");
+        Console.WriteLine($"ambiguity: nearest other same-drop recipe from board colors, CIELAB ΔE76; FAIL below {StageAudit.AmbiguityThreshold} " +
+                          $"({StageAudit.EasyAmbiguityThreshold} in tutorial and Easy, where tileΔE below {StageAudit.EasyTileThreshold} also fails)");
         Console.WriteLine("id  size  colors target  stored opt  optSets nearSets  ΔE(nearest)  gateΔE(gate~nearest)  tileΔE walk%  exact gate      title");
         // Folder order, then id order within a folder (stage_99 before stage_100); files outside the folders go last.
         string[] paths = Directory.GetFiles(dir, "*.json", SearchOption.AllDirectories)
@@ -66,7 +67,7 @@ static class LevelLab
             try
             {
                 file = JsonSerializer.Deserialize<StageFile>(File.ReadAllText(path), Json);
-                a = StageAudit.Audit(file);
+                a = StageAudit.Audit(file, section);
             }
             catch (StageFormatException e)
             {
@@ -102,12 +103,14 @@ static class LevelLab
                 _ => "-",
             };
             if (a.GateUse == GateUse.Skippable || a.GateUse == GateUse.AsReset) problems++;
-            if (a.TargetAmbiguous || a.GateAmbiguous) problems++;
+            if (a.TargetAmbiguous || a.GateAmbiguous || a.TilesTooSimilar) problems++;
             string targetDe = $"{a.TargetDeltaE,5:F1}{(a.TargetAmbiguous ? "!" : " ")}({a.TargetNearest})";
             string gateDe = a.GateUse == GateUse.None ? "-" : $"{a.GateDeltaE,5:F1}{(a.GateAmbiguous ? "!" : " ")}({a.GateNearest})";
-            Console.WriteLine($"{file.id,2}  {file.rows.Length}x{file.rows.Length}  {a.Colors,-6} {file.target,-6}  {file.optimalMoves,6} {a.Optimal,3}{(mismatch ? "!" : " ")}  {a.OptimalSets,7} {a.NearSets,8}  {targetDe,-12} {gateDe,-21} {a.TileDeltaE,6:F1} {a.WalkClear * 100,5:F2}  {(a.Exact ? "yes" : "NO"),-5} {gate,-9} {file.title}");
+            string tileDe = $"{a.TileDeltaE,6:F1}{(a.TilesTooSimilar ? "!" : " ")}";
+            Console.WriteLine($"{file.id,2}  {file.rows.Length}x{file.rows.Length}  {a.Colors,-6} {file.target,-6}  {file.optimalMoves,6} {a.Optimal,3}{(mismatch ? "!" : " ")}  {a.OptimalSets,7} {a.NearSets,8}  {targetDe,-12} {gateDe,-21} {tileDe}{a.WalkClear * 100,5:F2}  {(a.Exact ? "yes" : "NO"),-5} {gate,-9} {file.title}");
             if (a.TargetAmbiguous) Console.WriteLine($"    AMBIGUOUS target {file.target}: {a.TargetNearest} is only ΔE {a.TargetDeltaE:F1} away");
             if (a.GateAmbiguous) Console.WriteLine($"    AMBIGUOUS gate {a.GateNearest.Replace("~", ": ")} is only ΔE {a.GateDeltaE:F1} away");
+            if (a.TilesTooSimilar) Console.WriteLine($"    SIMILAR TILES {a.Colors}: two tile colors only ΔE {a.TileDeltaE:F1} apart (tutorial and Easy need {StageAudit.EasyTileThreshold})");
             if (a.PathBroken)
             {
                 Console.WriteLine($"    PATH BROKEN \"{file.path}\": {PathFailure(a)}");
@@ -211,6 +214,7 @@ static class LevelLab
         int[] optRange = o.TryGetValue("opt", out string or) ? or.Split('-').Select(int.Parse).ToArray() : new[] { 1, 99 };
         int randomWalls = o.TryGetValue("randwalls", out string rw) ? int.Parse(rw) : 0;
         double minAmbiguity = o.TryGetValue("amb", out string am) ? double.Parse(am) : StageAudit.AmbiguityThreshold;
+        double minTile = o.TryGetValue("tile", out string tl) ? double.Parse(tl) : 0;
         int tries = o.TryGetValue("n", out string n) ? int.Parse(n) : 20000;
         int top = o.TryGetValue("top", out string tp) ? int.Parse(tp) : 5;
         bool requireAllColors = !o.ContainsKey("anycolors");
@@ -247,6 +251,7 @@ static class LevelLab
             if (!a.Solvable || a.Optimal < optRange[0] || a.Optimal > optRange[1]) continue;
             if (gates != null && a.GateUse != GateUse.Door) continue;
             if (a.TargetDeltaE < minAmbiguity || a.GateDeltaE < minAmbiguity) continue;
+            if (a.TileDeltaE < minTile) continue;
             if (!a.Exact) continue;
             if (noHub && a.StartReturns > 0) continue;
             if (wallsMatter && !EveryWallMatters(file, colors, a)) continue;

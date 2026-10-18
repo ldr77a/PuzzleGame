@@ -3,11 +3,11 @@
   "title": "덩굴 숲",
   "hint": "",
   "rows": [
-    "B G B G",
-    "B S G P",
-    "G G G G",
-    "P G # #"
+    "G P P B",
+    "P S G G",
+    "B P B B",
+    "G G # #"
   ],
-  "target": "GGBPP",
+  "target": "GGGGP",
   "optimalMoves": 7
 }
